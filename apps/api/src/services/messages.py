@@ -1,0 +1,154 @@
+from datetime import datetime, timezone
+from uuid import UUID
+
+from fastapi import HTTPException
+
+from src.integrations.foundry import FoundryIntegrationError, generate_text
+from src.schemas.messages import MessageEdit, MessageReview
+from src.services.campaigns import _campaign_or_404
+from src.services.storage import database_client, database_operation
+
+
+def _candidate_context(client, campaign_id: UUID, candidate_id: UUID) -> dict:
+    link_rows = database_operation(
+        lambda: client.table("campaign_candidates")
+        .select("candidate_id,fit_score,fit_reason")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not link_rows:
+        raise HTTPException(status_code=404, detail="Candidate is not part of this campaign.")
+    candidate_rows = database_operation(
+        lambda: client.table("candidates")
+        .select("username,display_name,bio,location,profile_url")
+        .eq("id", str(candidate_id))
+        .limit(1)
+        .execute()
+        .data
+    )
+    evidence = database_operation(
+        lambda: client.table("candidate_evidence")
+        .select("source_url,source_type,excerpt")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .order("created_at")
+        .execute()
+        .data
+    )
+    if not candidate_rows or not evidence:
+        raise HTTPException(status_code=422, detail="Add at least one evidence item before drafting a message.")
+    return {"candidate": candidate_rows[0], "fit": link_rows[0], "evidence": evidence}
+
+
+def draft_message(campaign_id: UUID, candidate_id: UUID) -> dict:
+    client = database_client()
+    _campaign_or_404(client, campaign_id)
+    context = _candidate_context(client, campaign_id, candidate_id)
+    candidate = context["candidate"]
+    fit = context["fit"]
+    evidence = context["evidence"]
+    evidence_text = "\n".join(
+        f"- {item['source_type']}: {item['excerpt']} ({item['source_url']})" for item in evidence
+    )
+    prompt = f"""Write one concise, warm first-contact X DM for GenAI Fund.
+Use only the evidence below. Do not claim familiarity, mutual connections, or facts not provided.
+Do not mention scores or that this was generated. Keep it under 500 characters.
+Include one light invitation to a conversation. Return only the message text.
+
+Candidate: @{candidate['username']} ({candidate.get('display_name') or 'unknown name'})
+Bio: {candidate.get('bio') or 'not provided'}
+Location: {candidate.get('location') or 'not provided'}
+Fit reason: {fit['fit_reason']}
+Evidence:
+{evidence_text}
+"""
+    try:
+        content = generate_text(prompt, max_output_tokens=180)
+    except FoundryIntegrationError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from None
+    existing = database_operation(
+        lambda: client.table("message_drafts")
+        .select("id")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .in_("status", ["draft", "rejected"])
+        .limit(1)
+        .execute()
+        .data
+    )
+    if existing:
+        rows = database_operation(
+            lambda: client.table("message_drafts")
+            .update({"content": content, "status": "draft", "approved_at": None})
+            .eq("id", existing[0]["id"])
+            .execute()
+            .data
+        )
+    else:
+        rows = database_operation(
+            lambda: client.table("message_drafts")
+            .insert({
+                "campaign_id": str(campaign_id),
+                "candidate_id": str(candidate_id),
+                "content": content,
+                "status": "draft",
+            })
+            .execute()
+            .data
+        )
+    if not rows:
+        raise HTTPException(status_code=502, detail="Message draft could not be saved.")
+    database_operation(
+        lambda: client.table("campaign_candidates")
+        .update({"status": "drafted"})
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .execute()
+    )
+    return rows[0]
+
+
+def edit_message(message_id: UUID, payload: MessageEdit) -> dict:
+    client = database_client()
+    rows = database_operation(
+        lambda: client.table("message_drafts")
+        .update({"content": payload.content, "status": "draft", "approved_at": None})
+        .eq("id", str(message_id))
+        .in_("status", ["draft", "rejected"])
+        .execute()
+        .data
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Editable message draft not found.")
+    return rows[0]
+
+
+def review_message(message_id: UUID, payload: MessageReview) -> dict:
+    client = database_client()
+    if payload.action == "approve":
+        update = {"status": "approved", "approved_at": datetime.now(timezone.utc).isoformat()}
+    else:
+        update = {"status": "rejected", "approved_at": None}
+    rows = database_operation(
+        lambda: client.table("message_drafts")
+        .update(update)
+        .eq("id", str(message_id))
+        .eq("status", "draft")
+        .execute()
+        .data
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Only draft messages can be reviewed.")
+    message = rows[0]
+    if payload.action == "approve":
+        database_operation(
+            lambda: client.table("campaign_candidates")
+            .update({"status": "approved"})
+            .eq("campaign_id", message["campaign_id"])
+            .eq("candidate_id", message["candidate_id"])
+            .execute()
+        )
+    return message

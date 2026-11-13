@@ -4,15 +4,19 @@ from src.core.config import settings
 from src.schemas.health import IntegrationStatus
 
 
+class FoundryIntegrationError(Exception):
+    pass
+
+
 def foundry_configuration_status() -> IntegrationStatus:
     if not settings.foundry_is_configured:
         return IntegrationStatus(status="not_configured", message="Foundry credentials are incomplete.")
     return IntegrationStatus(status="configured", message="Foundry deployment is configured.")
 
 
-def check_foundry_connection() -> IntegrationStatus:
+def _request_text(prompt: str, max_output_tokens: int) -> str:
     if not settings.foundry_is_configured:
-        return foundry_configuration_status()
+        raise FoundryIntegrationError("Foundry credentials are incomplete.")
 
     try:
         response = httpx.post(
@@ -23,8 +27,8 @@ def check_foundry_connection() -> IntegrationStatus:
             },
             json={
                 "model": settings.azure_openai_deployment_name,
-                "input": "Reply with OK.",
-                "max_output_tokens": 16,
+                "input": prompt,
+                "max_output_tokens": max_output_tokens,
             },
             timeout=httpx.Timeout(20.0, connect=5.0),
         )
@@ -36,8 +40,13 @@ def check_foundry_connection() -> IntegrationStatus:
             for content in item.get("content", [])
         )
         if not has_text:
-            return IntegrationStatus(status="error", message="Foundry returned an empty response.")
-        return IntegrationStatus(status="connected", message="Foundry deployment responded successfully.")
+            raise FoundryIntegrationError("Foundry returned an empty response.")
+        return "\n".join(
+            content["text"].strip()
+            for item in payload.get("output", [])
+            for content in item.get("content", [])
+            if content.get("type") == "output_text" and content.get("text", "").strip()
+        ).strip()
     except httpx.HTTPStatusError as error:
         status_code = error.response.status_code
         if status_code == 401:
@@ -50,13 +59,26 @@ def check_foundry_connection() -> IntegrationStatus:
             message = "Foundry rate limit or quota was reached."
         else:
             message = f"Foundry returned HTTP {status_code}."
+        raise FoundryIntegrationError(message) from None
     except httpx.TimeoutException:
-        message = "Foundry request timed out."
+        raise FoundryIntegrationError("Foundry request timed out.") from None
     except httpx.HTTPError:
-        message = "Could not connect to the Foundry endpoint."
+        raise FoundryIntegrationError("Could not connect to the Foundry endpoint.") from None
     except (ValueError, KeyError, TypeError):
-        message = "Foundry returned an invalid response."
+        raise FoundryIntegrationError("Foundry returned an invalid response.") from None
     except Exception:
-        message = "Foundry check failed due to an unexpected error."
+        raise FoundryIntegrationError("Foundry check failed due to an unexpected error.") from None
 
-    return IntegrationStatus(status="error", message=message)
+
+def generate_text(prompt: str, max_output_tokens: int = 180) -> str:
+    return _request_text(prompt, max_output_tokens)
+
+
+def check_foundry_connection() -> IntegrationStatus:
+    if not settings.foundry_is_configured:
+        return foundry_configuration_status()
+    try:
+        _request_text("Reply with OK.", max_output_tokens=16)
+        return IntegrationStatus(status="connected", message="Foundry deployment responded successfully.")
+    except FoundryIntegrationError as error:
+        return IntegrationStatus(status="error", message=str(error))

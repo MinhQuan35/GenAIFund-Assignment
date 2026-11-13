@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import ApiStatus from '../features/system/ApiStatus.jsx';
+import CampaignWorkspace from '../features/campaigns/CampaignWorkspace.jsx';
 
 export default function App() {
   const [api, setApi] = useState({ state: 'loading', environment: null });
@@ -156,6 +157,8 @@ export default function App() {
               </div>
             </div>
           </section>
+
+          <CampaignWorkspace />
 
           <div className="bottom-note">
             <span className="note-rule" />

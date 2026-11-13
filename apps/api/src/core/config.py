@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_secret_key: SecretStr | None = None
     supabase_service_role_key: SecretStr | None = None
+    database_url: str | None = None
+    direct_url: str | None = None
     azure_openai_base_url: str | None = None
     azure_openai_api_key: SecretStr | None = None
     azure_openai_deployment_name: str | None = None
