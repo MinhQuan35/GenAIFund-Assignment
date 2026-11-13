@@ -1,0 +1,20 @@
+﻿# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated files
+node_modules/
+**/node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Assignment brief
+GenAI Fund*FDE Take-Home Assignment*.docx
