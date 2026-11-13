@@ -3,6 +3,8 @@ import ApiStatus from '../features/system/ApiStatus.jsx';
 
 export default function App() {
   const [api, setApi] = useState({ state: 'loading', environment: null });
+  const [services, setServices] = useState({ supabase: null, foundry: null });
+  const [foundryCheck, setFoundryCheck] = useState({ state: 'idle', message: '' });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -12,13 +14,45 @@ export default function App() {
         if (!response.ok) throw new Error(`API responded with ${response.status}`);
         return response.json();
       })
-      .then((data) => setApi({ state: 'online', environment: data.environment }))
+      .then((data) => {
+        setApi({ state: 'online', environment: data.environment });
+        setServices(data.dependencies || {});
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') setApi({ state: 'offline', environment: null });
       });
 
     return () => controller.abort();
   }, []);
+
+  async function runFoundryCheck() {
+    setFoundryCheck({ state: 'checking', message: 'Sending a short test request…' });
+    try {
+      const response = await fetch('/api/v1/integrations/foundry/check', { method: 'POST' });
+      const result = await response.json();
+      setFoundryCheck({ state: result.status, message: result.message });
+      setServices((current) => ({ ...current, foundry: result }));
+    } catch {
+      setFoundryCheck({ state: 'error', message: 'Could not reach the backend.' });
+    }
+  }
+
+  function serviceLabel(service) {
+    if (!service) return 'Checking';
+    return {
+      connected: 'Connected',
+      configured: 'Ready to check',
+      not_configured: 'Needs setup',
+      error: 'Unavailable',
+    }[service.status] || 'Unknown';
+  }
+
+  function serviceState(service) {
+    if (!service) return 'loading';
+    if (service.status === 'connected') return 'online';
+    if (service.status === 'error') return 'offline';
+    return 'pending';
+  }
 
   return (
     <div className="workspace">
@@ -92,15 +126,34 @@ export default function App() {
                 {api.state === 'loading' ? 'Checking' : api.state === 'online' ? 'Connected' : 'Unavailable'}
               </span>
             </div>
-            <div className="service-row service-row-last">
+            <div className="service-row">
               <div className="service-name">
-                <span className="status-dot status-pending" aria-hidden="true" />
+                <span className={`status-dot status-${serviceState(services.supabase)}`} aria-hidden="true" />
                 <div>
-                  <strong>Supabase, X and Foundry</strong>
-                  <span>Integration setup</span>
+                  <strong>Supabase</strong>
+                  <span>{services.supabase?.message || 'Server connection check'}</span>
                 </div>
               </div>
-              <span className="service-state service-state-pending">Not connected</span>
+              <span className={`service-state service-state-${serviceState(services.supabase)}`}>
+                {serviceLabel(services.supabase)}
+              </span>
+            </div>
+            <div className="service-row service-row-last">
+              <div className="service-name">
+                <span className={`status-dot status-${serviceState(services.foundry)}`} aria-hidden="true" />
+                <div>
+                  <strong>Azure AI Foundry</strong>
+                  <span>{foundryCheck.message || services.foundry?.message || 'Deployment connection check'}</span>
+                </div>
+              </div>
+              <div className="service-actions">
+                <span className={`service-state service-state-${serviceState(services.foundry)}`}>
+                  {foundryCheck.state === 'checking' ? 'Checking' : serviceLabel(services.foundry)}
+                </span>
+                <button className="secondary-button" type="button" onClick={runFoundryCheck} disabled={foundryCheck.state === 'checking'}>
+                  Check Foundry
+                </button>
+              </div>
             </div>
           </section>
 

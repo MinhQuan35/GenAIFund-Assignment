@@ -74,6 +74,10 @@ h2 { margin-bottom: 0; font-size: 15px; font-weight: 650; }
 .service-state-online { color: #13795b; }
 .service-state-offline { color: #b6483c; }
 .service-state-pending { color: #89948f; }
+.service-actions { display: flex; align-items: center; gap: 14px; }
+.secondary-button { min-height: 30px; padding: 0 9px; color: #3d514a; background: #fff; border: 1px solid #d7e0dc; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
+.secondary-button:hover:not(:disabled) { background: #f6f8f7; }
+.secondary-button:disabled { opacity: .55; cursor: wait; }
 .status-pending { background: #aab4b0; }
 .bottom-note { display: flex; align-items: center; gap: 12px; margin-top: 25px; color: #85918c; font-size: 11px; }
 .bottom-note p { margin: 0; }
@@ -90,5 +94,7 @@ h2 { margin-bottom: 0; font-size: 15px; font-weight: 650; }
   .topbar { height: 56px; padding: 0 16px; }
   .page-content { padding: 30px 16px 40px; }
   .page-heading { align-items: flex-start; flex-direction: column; margin-bottom: 25px; }
+  .service-row { gap: 12px; padding-right: 12px; padding-left: 12px; }
+  .service-actions { align-items: flex-end; flex-direction: column; gap: 7px; }
   h1 { font-size: 23px; }
 }
