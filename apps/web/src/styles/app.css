@@ -32,6 +32,9 @@ a { color: inherit; text-decoration: none; }
 .nav-label { margin: 38px 10px 10px; color: #8a9691; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .sidebar nav { display: grid; gap: 4px; }
 .nav-item { display: flex; align-items: center; gap: 11px; min-height: 38px; padding: 0 10px; border-radius: 5px; color: #53615c; font-size: 13px; }
+.sidebar nav button { width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.sidebar nav button.nav-item-active { color: #126a50; background: var(--green-soft); }
+.sidebar nav button:hover:not(.nav-item-active) { background: #f4f7f5; }
 .nav-item-active { color: #126a50; background: var(--green-soft); font-weight: 600; }
 .nav-item-muted { color: #87928e; cursor: default; }
 .nav-icon { width: 17px; text-align: center; font-size: 15px; }
@@ -113,6 +116,9 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .evidence-list { display: grid; gap: 5px; }
 .evidence-list a { overflow: hidden; color: #26725a; font-size: 10px; line-height: 1.35; text-decoration: underline; text-overflow: ellipsis; }
 .candidate-status { padding-top: 7px; border-top: 1px solid #e7ece9; }
+.candidate-card-footer { display: grid; gap: 8px; }
+.candidate-card-footer .candidate-status { padding-top: 7px; border-top: 1px solid #e7ece9; }
+.candidate-card-footer .secondary-button { justify-self: start; }
 .candidate-form { margin: 0 16px 16px; padding: 15px 0 0; border-top: 1px solid #edf0ee; }
 .form-section-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1px; }
 .form-section-heading .eyebrow { margin-bottom: 0; }
@@ -124,6 +130,42 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .form-message { margin: 0 16px 16px; padding: 9px 10px; border-radius: 4px; font-size: 11px; }
 .form-message-success { color: #176748; background: #eaf6f0; }
 .form-message-error { color: #a6473e; background: #fff0ed; }
+.data-view { display: grid; gap: 15px; }
+.data-view-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; }
+.data-view-heading h2 { margin-bottom: 5px; font-size: 20px; }
+.data-view-heading p:not(.eyebrow) { margin-bottom: 0; color: #76837d; font-size: 12px; }
+.people-list, .conversation-list { display: grid; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+.person-row { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(140px, 1.3fr) minmax(100px, .8fr) minmax(160px, 1.2fr); align-items: center; gap: 16px; padding: 13px 15px; border-bottom: 1px solid #edf0ee; }
+.person-row:last-child, .conversation-item:last-child { border-bottom: 0; }
+.person-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.person-avatar { display: grid; flex: 0 0 31px; width: 31px; height: 31px; place-items: center; color: #176e52; background: #e6f2ec; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.person-main > div:last-child { display: grid; gap: 3px; min-width: 0; }
+.person-name { overflow: hidden; color: #2e4239; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.person-handle { overflow: hidden; color: #84918b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.person-bio { display: -webkit-box; overflow: hidden; margin: 0; color: #64716b; font-size: 11px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.person-campaigns { display: flex; flex-wrap: wrap; gap: 5px; }
+.campaign-tag { padding: 4px 6px; color: #4e6c5e; background: #eff5f1; border-radius: 3px; font-size: 9px; }
+.person-evidence { display: grid; gap: 4px; min-width: 0; }
+.person-evidence a { overflow: hidden; color: #26725a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.view-toolbar { display: flex; align-items: center; justify-content: space-between; }
+.segmented-control { display: inline-flex; gap: 2px; padding: 3px; background: #eaf0ed; border-radius: 5px; }
+.segmented-control button { padding: 6px 9px; color: #67756e; background: transparent; border: 0; border-radius: 3px; font-size: 10px; cursor: pointer; }
+.segmented-control button.segment-active { color: #245a43; background: #fff; box-shadow: 0 1px 2px #142d2012; }
+.conversation-item { display: grid; gap: 11px; padding: 15px; border-bottom: 1px solid #edf0ee; }
+.conversation-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.conversation-header > div { display: grid; gap: 4px; }
+.conversation-header strong { color: #31433b; font-size: 12px; }
+.conversation-header span:not(.message-status) { color: #88938e; font-size: 10px; }
+.message-status { padding: 4px 7px; color: #6a766f; background: #eff2f0; border-radius: 3px; font-size: 10px; text-transform: capitalize; }
+.message-status-draft { color: #7d6120; background: #fbf4df; }
+.message-status-approved { color: #176b4b; background: #e8f5ed; }
+.message-status-rejected { color: #a14d43; background: #fff0ed; }
+.conversation-item textarea { min-height: 85px; }
+.conversation-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #8b9691; font-size: 10px; }
+.conversation-actions > div { display: flex; gap: 7px; }
+.button-reject { color: #98473e; }
+.button-approve { min-height: 30px; padding: 0 10px; font-size: 11px; }
+.approval-note { margin: 0; color: #478164; font-size: 10px; }
 
 @media (max-width: 700px) {
   .sidebar { flex-basis: 58px; align-items: center; padding: 16px 7px 12px; }
@@ -140,5 +182,10 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
   .service-actions { align-items: flex-end; flex-direction: column; gap: 7px; }
   .campaign-layout { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  .person-row { grid-template-columns: 1fr; gap: 8px; }
+  .person-bio { padding-left: 41px; }
+  .person-campaigns, .person-evidence { padding-left: 41px; }
+  .conversation-actions { align-items: flex-start; flex-direction: column; }
+  .conversation-actions > div { flex-wrap: wrap; }
   h1 { font-size: 23px; }
 }

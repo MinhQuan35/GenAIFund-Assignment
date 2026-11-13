@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import ApiStatus from '../features/system/ApiStatus.jsx';
 import CampaignWorkspace from '../features/campaigns/CampaignWorkspace.jsx';
+import PeopleView from '../features/people/PeopleView.jsx';
+import ConversationsView from '../features/conversations/ConversationsView.jsx';
 
 export default function App() {
   const [api, setApi] = useState({ state: 'loading', environment: null });
   const [services, setServices] = useState({ supabase: null, foundry: null });
   const [foundryCheck, setFoundryCheck] = useState({ state: 'idle', message: '' });
+  const [activeView, setActiveView] = useState('overview');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -64,22 +67,22 @@ export default function App() {
         </a>
         <div className="nav-label">Workspace</div>
         <nav>
-          <a className="nav-item nav-item-active" href="/" aria-current="page">
+          <button className={`nav-item ${activeView === 'overview' ? 'nav-item-active' : ''}`} onClick={() => setActiveView('overview')} type="button">
             <span className="nav-icon" aria-hidden="true">◫</span>
             Overview
-          </a>
-          <span className="nav-item nav-item-muted" aria-disabled="true">
+          </button>
+          <button className={`nav-item ${activeView === 'campaigns' ? 'nav-item-active' : ''}`} onClick={() => setActiveView('campaigns')} type="button">
             <span className="nav-icon" aria-hidden="true">◎</span>
             Campaigns
-          </span>
-          <span className="nav-item nav-item-muted" aria-disabled="true">
+          </button>
+          <button className={`nav-item ${activeView === 'people' ? 'nav-item-active' : ''}`} onClick={() => setActiveView('people')} type="button">
             <span className="nav-icon" aria-hidden="true">♙</span>
             People
-          </span>
-          <span className="nav-item nav-item-muted" aria-disabled="true">
+          </button>
+          <button className={`nav-item ${activeView === 'conversations' ? 'nav-item-active' : ''}`} onClick={() => setActiveView('conversations')} type="button">
             <span className="nav-icon" aria-hidden="true">↗</span>
             Conversations
-          </span>
+          </button>
         </nav>
         <div className="sidebar-footer">
           <span className="account-dot" aria-hidden="true" />
@@ -89,18 +92,19 @@ export default function App() {
 
       <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumb">Workspace <span>/</span> Overview</div>
+          <div className="breadcrumb">Workspace <span>/</span> {activeView[0].toUpperCase() + activeView.slice(1)}</div>
           <ApiStatus state={api.state} />
         </header>
 
         <section className="page-content">
+          {activeView === 'overview' && <>
           <div className="page-heading">
             <div>
               <p className="eyebrow">GENAI FUND · SOUTHEAST ASIA</p>
               <h1>Outreach workspace</h1>
               <p className="subtitle">Find relevant builders and keep every conversation organized.</p>
             </div>
-            <button className="primary-button" type="button" disabled>
+            <button className="primary-button" type="button" onClick={() => setActiveView('campaigns')}>
               <span aria-hidden="true">+</span> New campaign
             </button>
           </div>
@@ -158,12 +162,17 @@ export default function App() {
             </div>
           </section>
 
-          <CampaignWorkspace />
-
           <div className="bottom-note">
             <span className="note-rule" />
             <p>Campaigns and contacts will appear here as you build your workspace.</p>
           </div>
+          </>}
+          {activeView === 'campaigns' && <>
+            <div className="page-heading"><div><p className="eyebrow">OUTREACH</p><h1>Campaigns</h1><p className="subtitle">Build candidate lists from segments and seed accounts.</p></div></div>
+            <CampaignWorkspace />
+          </>}
+          {activeView === 'people' && <PeopleView />}
+          {activeView === 'conversations' && <ConversationsView />}
         </section>
       </main>
     </div>

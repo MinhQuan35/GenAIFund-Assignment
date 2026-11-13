@@ -232,3 +232,56 @@ def add_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     )
     workspace = campaign_workspace(campaign_id)
     return next(candidate for candidate in workspace["candidates"] if candidate["id"] == candidate_id)
+
+
+def list_people() -> list[dict]:
+    client = database_client()
+    candidates = database_operation(
+        lambda: client.table("candidates")
+        .select("id,username,display_name,bio,location,profile_url")
+        .order("username")
+        .execute()
+        .data
+    )
+    if not candidates:
+        return []
+    candidate_ids = [candidate["id"] for candidate in candidates]
+    links = database_operation(
+        lambda: client.table("campaign_candidates")
+        .select("campaign_id,candidate_id,fit_score,fit_reason,status")
+        .in_("candidate_id", candidate_ids)
+        .execute()
+        .data
+    )
+    evidence = database_operation(
+        lambda: client.table("candidate_evidence")
+        .select("id,campaign_id,candidate_id,source_url,source_type,excerpt,captured_at")
+        .in_("candidate_id", candidate_ids)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    campaigns = database_operation(
+        lambda: client.table("campaigns")
+        .select("id,name")
+        .in_("id", list({link["campaign_id"] for link in links}))
+        .execute()
+        .data
+    ) if links else []
+    campaign_names = {campaign["id"]: campaign["name"] for campaign in campaigns}
+    links_by_candidate: dict[str, list[dict]] = {candidate_id: [] for candidate_id in candidate_ids}
+    evidence_by_candidate: dict[str, list[dict]] = {candidate_id: [] for candidate_id in candidate_ids}
+    for link in links:
+        links_by_candidate[link["candidate_id"]].append(
+            {**link, "campaign_name": campaign_names.get(link["campaign_id"], "Campaign")}
+        )
+    for item in evidence:
+        evidence_by_candidate[item["candidate_id"]].append(item)
+    return [
+        {
+            **candidate,
+            "campaigns": links_by_candidate[candidate["id"]],
+            "evidence": evidence_by_candidate[candidate["id"]],
+        }
+        for candidate in candidates
+    ]

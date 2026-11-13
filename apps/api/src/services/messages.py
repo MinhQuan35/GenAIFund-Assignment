@@ -152,3 +152,42 @@ def review_message(message_id: UUID, payload: MessageReview) -> dict:
             .execute()
         )
     return message
+
+
+def list_conversations() -> list[dict]:
+    client = database_client()
+    messages = database_operation(
+        lambda: client.table("message_drafts")
+        .select("id,campaign_id,candidate_id,content,status,approved_at,sent_at,created_at")
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+    if not messages:
+        return []
+    candidate_ids = list({message["candidate_id"] for message in messages})
+    campaign_ids = list({message["campaign_id"] for message in messages})
+    candidates = database_operation(
+        lambda: client.table("candidates")
+        .select("id,username,display_name,profile_url")
+        .in_("id", candidate_ids)
+        .execute()
+        .data
+    )
+    campaigns = database_operation(
+        lambda: client.table("campaigns")
+        .select("id,name")
+        .in_("id", campaign_ids)
+        .execute()
+        .data
+    )
+    candidate_by_id = {candidate["id"]: candidate for candidate in candidates}
+    campaign_by_id = {campaign["id"]: campaign["name"] for campaign in campaigns}
+    return [
+        {
+            **message,
+            "candidate": candidate_by_id.get(message["candidate_id"]),
+            "campaign_name": campaign_by_id.get(message["campaign_id"], "Campaign"),
+        }
+        for message in messages
+    ]

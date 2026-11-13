@@ -2,11 +2,15 @@ from uuid import UUID
 
 from fastapi import APIRouter
 
-from src.schemas.candidates import CandidateWorkspaceItem
 from src.schemas.messages import MessageEdit, MessageReview, MessageDraftResponse
-from src.services.messages import draft_message, edit_message, review_message
+from src.services.messages import draft_message, edit_message, list_conversations, review_message
 
 router = APIRouter()
+
+
+@router.get("/conversations")
+def get_conversations() -> list[dict]:
+    return list_conversations()
 
 
 @router.post("/campaigns/{campaign_id}/candidates/{candidate_id}/draft", response_model=MessageDraftResponse)

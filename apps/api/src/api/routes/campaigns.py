@@ -4,7 +4,7 @@ from fastapi import APIRouter, status
 
 from src.schemas.campaigns import CampaignCreate, CampaignSummary
 from src.schemas.candidates import CandidateCreate, CandidateWorkspaceItem, CampaignWorkspace
-from src.services.campaigns import add_candidate, campaign_workspace, create_campaign, list_campaigns
+from src.services.campaigns import add_candidate, campaign_workspace, create_campaign, list_campaigns, list_people
 
 router = APIRouter()
 
@@ -12,6 +12,11 @@ router = APIRouter()
 @router.get("", response_model=list[CampaignSummary])
 def get_campaigns() -> list[dict]:
     return list_campaigns()
+
+
+@router.get("/people", tags=["people"])
+def get_people() -> list[dict]:
+    return list_people()
 
 
 @router.post("", response_model=CampaignSummary, status_code=status.HTTP_201_CREATED)
