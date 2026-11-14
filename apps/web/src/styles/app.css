@@ -122,6 +122,12 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .candidate-top strong { color: #315c4b; font-size: 12px; }
 .candidate-top span, .candidate-card p, .candidate-status { color: #7a8781; font-size: 10px; }
 .candidate-card p { min-height: 31px; margin: 0; line-height: 1.45; }
+.qualification-state { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 7px; border-radius: 3px; font-size: 9px; }
+.qualification-state strong { font-size: 10px; font-weight: 650; }
+.qualification-state span { opacity: .8; white-space: nowrap; }
+.qualification-ready { color: #176b4b; background: #e9f5ee; }
+.qualification-needs-work { color: #745d2a; background: #faf4e5; }
+.qualification-missing { display: grid; gap: 3px; margin: -4px 0 0; padding-left: 18px; color: #7c7766; font-size: 9px; line-height: 1.35; }
 .score-label { padding: 3px 5px; color: #13795b; background: #e7f3ee; border-radius: 3px; font-size: 10px; white-space: nowrap; }
 .score-breakdown { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
 .score-method { width: 100%; color: #728078; font-size: 9px; }

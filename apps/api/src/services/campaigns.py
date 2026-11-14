@@ -4,6 +4,7 @@ from fastapi import HTTPException
 
 from src.schemas.campaigns import CampaignCreate
 from src.schemas.candidates import CandidateCreate
+from src.services.candidate_quality import assess_candidate_quality
 from src.services.storage import database_client, database_operation
 
 
@@ -143,6 +144,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
                 **profile,
                 **link,
                 "evidence": evidence_by_candidate[candidate_id],
+                "qualification": assess_candidate_quality(profile, evidence_by_candidate[candidate_id]),
                 "message": draft_by_candidate.get(candidate_id),
             }
         )

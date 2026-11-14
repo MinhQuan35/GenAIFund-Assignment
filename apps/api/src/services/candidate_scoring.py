@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from src.integrations.foundry import FoundryIntegrationError, generate_text
 from src.integrations.x_api import api_request
 from src.services.campaigns import _campaign_or_404
+from src.services.candidate_quality import assess_candidate_quality
 from src.services.storage import database_client, database_operation
 
 DIMENSIONS = {
@@ -83,6 +84,11 @@ def score_candidate(campaign_id: UUID, candidate_id: UUID) -> dict:
         raise HTTPException(status_code=422, detail="Add source evidence before requesting an AI score.")
 
     profile = profiles[0]
+    qualification = assess_candidate_quality(profile, evidence)
+    if not qualification["eligible"]:
+        reasons = " ".join(qualification["missing"])
+        raise HTTPException(status_code=422, detail=f"Candidate needs more qualification before AI scoring. {reasons}")
+
     evidence_refresh = "existing_posts"
     if not any(item["source_type"] == "post" for item in evidence):
         evidence_refresh = "no_recent_posts"

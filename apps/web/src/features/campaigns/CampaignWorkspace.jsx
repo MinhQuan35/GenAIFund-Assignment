@@ -200,6 +200,15 @@ export default function CampaignWorkspace() {
                     </div>
                   </div>
                   <p>{candidate.fit_reason}</p>
+                  <div className={`qualification-state ${candidate.qualification?.eligible ? 'qualification-ready' : 'qualification-needs-work'}`}>
+                    <strong>{candidate.qualification?.eligible ? 'Ready for AI score' : 'Needs more evidence'}</strong>
+                    <span>Quality check · {candidate.qualification?.score ?? 0}/100</span>
+                  </div>
+                  {!candidate.qualification?.eligible && candidate.qualification?.missing?.length > 0 && (
+                    <ul className="qualification-missing">
+                      {candidate.qualification.missing.map((reason) => <li key={reason}>{reason}</li>)}
+                    </ul>
+                  )}
                   {candidate.fit_assessment && (
                     <div className="score-breakdown" aria-label="AI score breakdown">
                       <span className="score-method">AI assessment · Foundry</span>
@@ -216,7 +225,7 @@ export default function CampaignWorkspace() {
                   <div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div>
                   <div className="candidate-card-footer">
                     <span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span>
-                    <button className="secondary-button" type="button" disabled={scoringId === candidate.id || removingId === candidate.id} title="Uses one Foundry request and may fetch up to five X posts" onClick={() => scoreWithAI(candidate)}>{scoringId === candidate.id ? 'Scoring…' : candidate.fit_assessment ? 'Re-score with AI' : 'Score with AI'}</button>
+                    <button className="secondary-button" type="button" disabled={!candidate.qualification?.eligible || scoringId === candidate.id || removingId === candidate.id} title="Requires a domain signal, a relevant role, and supporting evidence. Uses Foundry and may fetch X posts." onClick={() => scoreWithAI(candidate)}>{scoringId === candidate.id ? 'Scoring…' : !candidate.qualification?.eligible ? 'Add evidence first' : candidate.fit_assessment ? 'Re-score with AI' : 'Score with AI'}</button>
                     <button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button>
                   </div>
                 </article>

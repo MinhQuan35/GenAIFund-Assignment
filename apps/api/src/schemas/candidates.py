@@ -57,6 +57,7 @@ class CandidateWorkspaceItem(BaseModel):
     fit_reason: str
     fit_score: int | None
     fit_assessment: dict | None = None
+    qualification: dict
     status: str
     evidence: list[EvidenceResponse]
     message: MessageDraftResponse | None
