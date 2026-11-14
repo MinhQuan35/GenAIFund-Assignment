@@ -204,6 +204,11 @@ def _x_request(method: str, path: str, *, token: str | None = None, params=None,
             raise HTTPException(status_code=401, detail="X authorization expired or is invalid. Reconnect the account.") from None
         if status == 403:
             raise HTTPException(status_code=403, detail="X denied this action. Check OAuth scopes and API access tier.") from None
+        if status == 402:
+            raise HTTPException(
+                status_code=402,
+                detail="X API credits are missing or depleted. Add credits in the X Developer Console, then retry discovery.",
+            ) from None
         if status == 429:
             reset = error.response.headers.get("x-rate-limit-reset")
             detail = "X rate limit reached."
