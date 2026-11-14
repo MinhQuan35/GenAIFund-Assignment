@@ -41,26 +41,37 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     if not query or len(query) > 512:
         raise HTTPException(status_code=422, detail="Provide a valid X recent-search query.")
 
-    result = api_request(
-        "GET",
-        "/tweets/search/recent",
-        params={
+    posts_per_page = min(100, max(10, payload.target_users * 3))
+    max_pages = min(5, max(1, (payload.target_users + 19) // 20))
+    users: dict[str, dict] = {}
+    posts_by_user: dict[str, list[dict]] = {}
+    next_token = None
+    pages_read = 0
+    for _ in range(max_pages):
+        params = {
             "query": query,
-            "max_results": payload.max_results,
+            "max_results": posts_per_page,
             "tweet.fields": "author_id,created_at,lang,public_metrics",
             "expansions": "author_id",
             "user.fields": "name,username,description,location,verified,profile_image_url",
-        },
-    )
-    users = {user["id"]: user for user in result.get("includes", {}).get("users", [])}
-    posts_by_user: dict[str, list[dict]] = {}
-    for post in result.get("data", []):
-        author_id = post.get("author_id")
-        if author_id and author_id in users:
-            posts_by_user.setdefault(author_id, []).append(post)
+        }
+        if next_token:
+            params["next_token"] = next_token
+        result = api_request("GET", "/tweets/search/recent", params=params)
+        pages_read += 1
+        for user in result.get("includes", {}).get("users", []):
+            users[user["id"]] = user
+        for post in result.get("data", []):
+            author_id = post.get("author_id")
+            if author_id and author_id in users:
+                posts_by_user.setdefault(author_id, []).append(post)
+        next_token = result.get("meta", {}).get("next_token")
+        if len(posts_by_user) >= payload.target_users or not next_token:
+            break
 
     saved = 0
-    for author_id, posts in posts_by_user.items():
+    discovered_user_ids: set[str] = set()
+    for author_id, posts in list(posts_by_user.items())[:payload.target_users]:
         user = users[author_id]
         if not user.get("username"):
             continue
@@ -92,6 +103,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         )
         add_candidate(campaign_id, candidate)
         saved += 1
+        discovered_user_ids.add(author_id)
 
     seeds = database_operation(
         lambda: client.table("campaign_seeds")
@@ -103,10 +115,14 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         .data
     )
     for seed in seeds:
+        if saved >= payload.target_users:
+            break
         username = seed["username"]
         lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified"})
         user = lookup.get("data", {})
         if not user.get("id") or not user.get("username"):
+            continue
+        if user["id"] in discovered_user_ids:
             continue
         timeline = api_request(
             "GET",
@@ -139,10 +155,13 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             fit_score=score, evidence=evidence[:6],
         ))
         saved += 1
+        discovered_user_ids.add(user["id"])
 
     return {
-        "candidates_found": len(posts_by_user) + len(seeds),
+        "requested": payload.target_users,
+        "candidates_found": len(discovered_user_ids),
         "saved": saved,
+        "pages_read": pages_read,
         "query": query,
         "message": "Review each profile and evidence before generating outreach.",
     }

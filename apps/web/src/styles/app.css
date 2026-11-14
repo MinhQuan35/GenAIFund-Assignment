@@ -108,6 +108,8 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .detail-header p:not(.eyebrow) { margin-bottom: 0; color: #75827d; font-size: 11px; }
 .detail-actions { display: flex; align-items: center; gap: 9px; }
 .detail-actions .primary-button { min-height: 31px; padding: 0 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+.target-count-label { display: grid; gap: 3px; color: #76837d; font-size: 9px; font-weight: 600; }
+.target-count-label input { width: 68px; height: 31px; padding: 4px 7px; background: #fff; font-size: 11px; }
 .candidate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px; padding: 14px 16px; }
 .candidate-card { display: grid; gap: 9px; padding: 12px; background: #fbfcfb; border: 1px solid #e5ebe8; border-radius: 5px; }
 .candidate-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }

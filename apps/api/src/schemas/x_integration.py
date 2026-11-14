@@ -3,12 +3,14 @@ from pydantic import BaseModel, Field
 
 class DiscoveryRequest(BaseModel):
     query: str | None = Field(default=None, min_length=1, max_length=400)
-    max_results: int = Field(default=25, ge=10, le=100)
+    target_users: int = Field(default=20, ge=1, le=100)
 
 
 class DiscoveryResponse(BaseModel):
+    requested: int
     candidates_found: int
     saved: int
+    pages_read: int
     query: str
     message: str
 
