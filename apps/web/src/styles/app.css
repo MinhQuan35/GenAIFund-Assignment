@@ -106,7 +106,7 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding: 17px 18px; border-bottom: 1px solid #edf0ee; }
 .detail-header h2 { margin-bottom: 5px; }
 .detail-header p:not(.eyebrow) { margin-bottom: 0; color: #75827d; font-size: 11px; }
-.detail-actions { display: flex; align-items: center; gap: 9px; }
+.detail-actions { display: flex; align-items: flex-end; gap: 9px; }
 .detail-actions .primary-button { min-height: 31px; padding: 0 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .target-count-label { display: grid; gap: 3px; color: #76837d; font-size: 9px; font-weight: 600; }
 .target-count-label input { width: 68px; height: 31px; padding: 4px 7px; background: #fff; font-size: 11px; }
