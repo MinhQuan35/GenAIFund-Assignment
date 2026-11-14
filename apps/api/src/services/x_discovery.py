@@ -9,7 +9,11 @@ from src.schemas.x_integration import DiscoveryRequest
 from src.services.campaigns import _campaign_or_404, add_candidate
 from src.services.storage import database_client, database_operation
 
-STOP_WORDS = {"the", "and", "for", "with", "from", "into", "people", "builders", "working", "based", "that", "this", "across"}
+STOP_WORDS = {
+    "a", "an", "and", "as", "at", "based", "by", "for", "from", "in", "into",
+    "is", "of", "on", "or", "the", "that", "this", "to", "with", "across",
+    "people", "builders", "working",
+}
 
 
 def _segment_terms(segment: str) -> list[str]:

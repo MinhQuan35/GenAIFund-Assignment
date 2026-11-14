@@ -219,7 +219,15 @@ def _x_request(method: str, path: str, *, token: str | None = None, params=None,
         if status == 400 and "duplicate" in response_body:
             raise HTTPException(status_code=409, detail="X reports this action as a duplicate.") from None
         if status == 400:
-            raise HTTPException(status_code=400, detail="X rejected this request. Check recipient eligibility and message content.") from None
+            try:
+                payload = error.response.json()
+                details = [item.get("message", "") for item in payload.get("errors", [])]
+                detail = "; ".join(message for message in details if message)
+            except (ValueError, TypeError):
+                detail = ""
+            if detail:
+                raise HTTPException(status_code=400, detail=f"X rejected the request: {detail}") from None
+            raise HTTPException(status_code=400, detail="X rejected this request. Check the search query, recipient eligibility, or message content.") from None
         raise HTTPException(status_code=502, detail=f"X API returned HTTP {status}.") from None
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="X API request timed out.") from None
