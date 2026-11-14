@@ -24,6 +24,7 @@ export default function CampaignWorkspace() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [saving, setSaving] = useState(false);
   const [draftingId, setDraftingId] = useState('');
+  const [scoringId, setScoringId] = useState('');
   const [discovering, setDiscovering] = useState(false);
   const [targetUsers, setTargetUsers] = useState(20);
   const [removingId, setRemovingId] = useState('');
@@ -108,6 +109,22 @@ export default function CampaignWorkspace() {
     }
   }
 
+  async function scoreWithAI(candidate) {
+    setScoringId(candidate.id);
+    try {
+      await request(`/api/v1/campaigns/${selected.id}/candidates/${candidate.id}/score`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setSelected(await request(`/api/v1/campaigns/${selected.id}`));
+      setMessage({ type: 'success', text: `Foundry scored @${candidate.username} using the saved profile and evidence.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setScoringId('');
+    }
+  }
+
   async function removeCandidate(candidate) {
     if (!selected) return;
     const confirmed = window.confirm(`Remove @${candidate.username} from this campaign?`);
@@ -178,9 +195,23 @@ export default function CampaignWorkspace() {
                     </div>
                   </div>
                   <p>{candidate.fit_reason}</p>
+                  {candidate.fit_assessment && (
+                    <div className="score-breakdown" aria-label="AI score breakdown">
+                      <span className="score-method">AI assessment · Foundry</span>
+                      {[
+                        ['role_relevance', 'Role'],
+                        ['domain_relevance', 'AI/robotics'],
+                        ['region_relevance', 'Region'],
+                        ['evidence_quality', 'Evidence'],
+                      ].map(([key, label]) => (
+                        <span className="score-dimension" key={key}>{label}<strong>{candidate.fit_assessment[key]}</strong></span>
+                      ))}
+                    </div>
+                  )}
                   <div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div>
                   <div className="candidate-card-footer">
                     <span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span>
+                    <button className="secondary-button" type="button" disabled={scoringId === candidate.id || removingId === candidate.id} title="Uses one Foundry request" onClick={() => scoreWithAI(candidate)}>{scoringId === candidate.id ? 'Scoring…' : candidate.fit_assessment ? 'Re-score with AI' : 'Score with AI'}</button>
                     <button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button>
                   </div>
                 </article>

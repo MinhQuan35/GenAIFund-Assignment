@@ -123,6 +123,10 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .candidate-top span, .candidate-card p, .candidate-status { color: #7a8781; font-size: 10px; }
 .candidate-card p { min-height: 31px; margin: 0; line-height: 1.45; }
 .score-label { padding: 3px 5px; color: #13795b; background: #e7f3ee; border-radius: 3px; font-size: 10px; white-space: nowrap; }
+.score-breakdown { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.score-method { width: 100%; color: #728078; font-size: 9px; }
+.score-dimension { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; color: #697770; background: #f0f5f2; border-radius: 3px; font-size: 9px; }
+.score-dimension strong { color: #26664d; font-size: 10px; }
 .evidence-list { display: grid; gap: 5px; }
 .evidence-list a { overflow: hidden; color: #26725a; font-size: 10px; line-height: 1.35; text-decoration: underline; text-overflow: ellipsis; }
 .candidate-status { padding-top: 7px; border-top: 1px solid #e7ece9; }

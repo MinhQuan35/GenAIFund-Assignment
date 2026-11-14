@@ -6,6 +6,7 @@ from src.schemas.campaigns import CampaignCreate, CampaignSummary
 from src.schemas.candidates import CandidateCreate, CandidateWorkspaceItem, CampaignWorkspace
 from src.schemas.x_integration import DiscoveryRequest, DiscoveryResponse
 from src.services.campaigns import add_candidate, campaign_workspace, create_campaign, list_campaigns, list_people, remove_candidate
+from src.services.candidate_scoring import score_candidate
 from src.services.x_discovery import discover_candidates
 
 router = APIRouter()
@@ -34,6 +35,13 @@ def get_campaign(campaign_id: UUID) -> dict:
 @router.post("/{campaign_id}/candidates", response_model=CandidateWorkspaceItem, status_code=status.HTTP_201_CREATED)
 def post_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     return add_candidate(campaign_id, payload)
+
+
+@router.post("/{campaign_id}/candidates/{candidate_id}/score", response_model=CandidateWorkspaceItem)
+def post_candidate_score(campaign_id: UUID, candidate_id: UUID) -> dict:
+    score_candidate(campaign_id, candidate_id)
+    workspace = campaign_workspace(campaign_id)
+    return next(candidate for candidate in workspace["candidates"] if candidate["id"] == str(candidate_id))
 
 
 @router.delete("/{campaign_id}/candidates/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)

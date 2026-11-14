@@ -56,6 +56,7 @@ class CandidateWorkspaceItem(BaseModel):
     profile_url: str | None
     fit_reason: str
     fit_score: int | None
+    fit_assessment: dict | None = None
     status: str
     evidence: list[EvidenceResponse]
     message: MessageDraftResponse | None

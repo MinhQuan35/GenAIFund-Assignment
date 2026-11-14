@@ -87,7 +87,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
     )
     links = database_operation(
         lambda: client.table("campaign_candidates")
-        .select("candidate_id,fit_score,fit_reason,status")
+        .select("candidate_id,fit_score,fit_reason,fit_assessment,status")
         .eq("campaign_id", str(campaign_id))
         .order("created_at", desc=True)
         .execute()
@@ -302,7 +302,7 @@ def list_people() -> list[dict]:
     candidate_ids = [candidate["id"] for candidate in candidates]
     links = database_operation(
         lambda: client.table("campaign_candidates")
-        .select("campaign_id,candidate_id,fit_score,fit_reason,status")
+        .select("campaign_id,candidate_id,fit_score,fit_reason,fit_assessment,status")
         .in_("candidate_id", candidate_ids)
         .execute()
         .data
