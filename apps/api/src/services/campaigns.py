@@ -235,6 +235,59 @@ def add_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     return next(candidate for candidate in workspace["candidates"] if candidate["id"] == candidate_id)
 
 
+def remove_candidate(campaign_id: UUID, candidate_id: UUID) -> None:
+    client = database_client()
+    _campaign_or_404(client, campaign_id)
+    association = database_operation(
+        lambda: client.table("campaign_candidates")
+        .select("candidate_id")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not association:
+        raise HTTPException(status_code=404, detail="Candidate is not part of this campaign.")
+
+    messages = database_operation(
+        lambda: client.table("message_drafts")
+        .select("id,status,external_message_id")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .in_("status", ["send_pending", "sent", "replied"])
+        .limit(1)
+        .execute()
+        .data
+    )
+    if messages or any(message.get("external_message_id") for message in messages):
+        raise HTTPException(status_code=409, detail="This candidate has a sent or pending DM and cannot be removed to preserve its outreach history.")
+
+    database_operation(
+        lambda: client.table("campaign_candidates")
+        .delete()
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .execute()
+    )
+
+    remaining_links = database_operation(
+        lambda: client.table("campaign_candidates")
+        .select("candidate_id")
+        .eq("candidate_id", str(candidate_id))
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not remaining_links:
+        database_operation(
+            lambda: client.table("candidates")
+            .delete()
+            .eq("id", str(candidate_id))
+            .execute()
+        )
+
+
 def list_people() -> list[dict]:
     client = database_client()
     candidates = database_operation(

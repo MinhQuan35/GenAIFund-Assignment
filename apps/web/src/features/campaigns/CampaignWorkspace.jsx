@@ -26,6 +26,7 @@ export default function CampaignWorkspace() {
   const [draftingId, setDraftingId] = useState('');
   const [discovering, setDiscovering] = useState(false);
   const [targetUsers, setTargetUsers] = useState(20);
+  const [removingId, setRemovingId] = useState('');
 
   useEffect(() => {
     request('/api/v1/campaigns').then(setCampaigns).catch((error) => setMessage({ type: 'error', text: error.message }));
@@ -107,6 +108,22 @@ export default function CampaignWorkspace() {
     }
   }
 
+  async function removeCandidate(candidate) {
+    if (!selected) return;
+    const confirmed = window.confirm(`Remove @${candidate.username} from this campaign?`);
+    if (!confirmed) return;
+    setRemovingId(candidate.id);
+    try {
+      await request(`/api/v1/campaigns/${selected.id}/candidates/${candidate.id}`, { method: 'DELETE' });
+      setSelected(await request(`/api/v1/campaigns/${selected.id}`));
+      setMessage({ type: 'success', text: `@${candidate.username} removed from the campaign.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setRemovingId('');
+    }
+  }
+
   async function discoverCandidates() {
     if (!selected) return;
     setDiscovering(true);
@@ -151,7 +168,23 @@ export default function CampaignWorkspace() {
           <>
             <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><label className="target-count-label">Target users<input aria-label="Number of users to find" type="number" min="1" max="100" step="1" value={targetUsers} onChange={(event) => setTargetUsers(event.target.value)} disabled={discovering} /></label><span className="environment-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering || !targetUsers || Number(targetUsers) < 1 || Number(targetUsers) > 100} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button></div></div>
             <div className="candidate-grid">
-              {selected.candidates.map((candidate) => <article className="candidate-card" key={candidate.id}><div className="candidate-top"><div><strong>@{candidate.username}</strong><span>{candidate.display_name || 'No display name'}</span></div><span className="score-label">{candidate.fit_score ?? '—'} / 100</span></div><p>{candidate.fit_reason}</p><div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div><div className="candidate-card-footer"><span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span><button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button></div></article>)}
+              {selected.candidates.map((candidate) => (
+                <article className="candidate-card" key={candidate.id}>
+                  <div className="candidate-top">
+                    <div><strong>@{candidate.username}</strong><span>{candidate.display_name || 'No display name'}</span></div>
+                    <div className="candidate-tools">
+                      <span className="score-label">{candidate.fit_score ?? '—'} / 100</span>
+                      <button className="icon-button remove-candidate-button" type="button" aria-label={`Remove @${candidate.username} from campaign`} title="Remove candidate" disabled={removingId === candidate.id || candidate.message?.status === 'sent' || candidate.message?.status === 'replied' || candidate.message?.status === 'send_pending'} onClick={() => removeCandidate(candidate)}>×</button>
+                    </div>
+                  </div>
+                  <p>{candidate.fit_reason}</p>
+                  <div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div>
+                  <div className="candidate-card-footer">
+                    <span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span>
+                    <button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button>
+                  </div>
+                </article>
+              ))}
               {!selected.candidates.length && <p className="empty-copy">Add a candidate with a source excerpt to create an evidence-backed workspace.</p>}
             </div>
             <form className="candidate-form" onSubmit={addCandidate}><div className="form-section-heading"><p className="eyebrow">ADD CANDIDATE</p><span>Evidence is required</span></div><div className="form-grid"><label>Username<input required value={candidateForm.username} onChange={(event) => setCandidateForm({ ...candidateForm, username: event.target.value })} placeholder="username" /></label><label>Display name<input value={candidateForm.displayName} onChange={(event) => setCandidateForm({ ...candidateForm, displayName: event.target.value })} /></label><label>Fit score<input type="number" min="0" max="100" value={candidateForm.fitScore} onChange={(event) => setCandidateForm({ ...candidateForm, fitScore: event.target.value })} placeholder="0–100" /></label><label>Location<input value={candidateForm.location} onChange={(event) => setCandidateForm({ ...candidateForm, location: event.target.value })} /></label></div><label>Why do they fit?<textarea required rows="2" value={candidateForm.fitReason} onChange={(event) => setCandidateForm({ ...candidateForm, fitReason: event.target.value })} placeholder="Evidence-based reason for inclusion" /></label><div className="form-grid"><label>Source URL<input required type="url" value={candidateForm.sourceUrl} onChange={(event) => setCandidateForm({ ...candidateForm, sourceUrl: event.target.value })} placeholder="https://..." /></label><label>Source type<select value={candidateForm.sourceType} onChange={(event) => setCandidateForm({ ...candidateForm, sourceType: event.target.value })}><option value="profile">Profile</option><option value="post">Post</option><option value="website">Website</option><option value="other">Other</option></select></label></div><label>Evidence excerpt<textarea required rows="3" value={candidateForm.excerpt} onChange={(event) => setCandidateForm({ ...candidateForm, excerpt: event.target.value })} placeholder="Paste the relevant public evidence here" /></label><button className="primary-button form-button" disabled={saving} type="submit">Save candidate</button></form>
