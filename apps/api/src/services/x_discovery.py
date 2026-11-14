@@ -70,13 +70,13 @@ def _evidence_for(user: dict, posts: list[dict]) -> list[EvidenceCreate]:
     return evidence
 
 
-def _candidate_is_qualified(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> bool:
+def _candidate_quality(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> dict:
     evidence_rows = [item.model_dump() for item in evidence]
     return assess_candidate_quality(
         user,
         evidence_rows,
         require_region=criteria["requires_region"],
-    )["eligible"]
+    )
 
 
 def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
@@ -114,6 +114,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
 
     saved = 0
     excluded = 0
+    excluded_reasons: dict[str, int] = {}
     discovered_user_ids: set[str] = set()
     for author_id, posts in posts_by_user.items():
         if saved >= payload.target_users:
@@ -121,10 +122,14 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         user = users[author_id]
         if not user.get("username"):
             excluded += 1
+            excluded_reasons["X profile did not include a username"] = excluded_reasons.get("X profile did not include a username", 0) + 1
             continue
         evidence = _evidence_for(user, posts)
-        if not evidence or not _candidate_is_qualified(user, evidence, criteria):
+        quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
+        if not quality["eligible"]:
             excluded += 1
+            for reason in quality["missing"]:
+                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
             continue
         score, reason = _score_candidate(campaign["segment"], user, posts)
         candidate = CandidateCreate(
@@ -167,8 +172,11 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         )
         posts = timeline.get("data", [])
         evidence = _evidence_for(user, posts)
-        if not evidence or not _candidate_is_qualified(user, evidence, criteria):
+        quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
+        if not quality["eligible"]:
             excluded += 1
+            for reason in quality["missing"]:
+                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
             continue
         score, reason = _score_candidate(campaign["segment"], user, posts)
         add_candidate(campaign_id, CandidateCreate(
@@ -184,6 +192,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         "candidates_found": saved,
         "saved": saved,
         "excluded": excluded,
+        "excluded_reasons": excluded_reasons,
         "pages_read": pages_read,
         "query": query,
         "message": "Review each profile and evidence before generating outreach.",

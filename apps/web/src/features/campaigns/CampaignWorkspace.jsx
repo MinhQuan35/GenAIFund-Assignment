@@ -156,7 +156,11 @@ export default function CampaignWorkspace() {
         body: JSON.stringify({ target_users: Number(targetUsers) }),
       });
       setSelected(await request(`/api/v1/campaigns/${selected.id}`));
-      setMessage({ type: 'success', text: `Saved ${result.saved} qualified candidates and filtered out ${result.excluded}. Search read ${result.pages_read} page(s). Review the evidence before drafting outreach.` });
+      const reasonSummary = Object.entries(result.excluded_reasons || {})
+        .map(([reason, count]) => `${reason} (${count})`)
+        .join('; ');
+      const filterNote = reasonSummary ? ` Reasons: ${reasonSummary}.` : '';
+      setMessage({ type: 'success', text: `Saved ${result.saved} qualified candidates and filtered out ${result.excluded}.${filterNote} Search read ${result.pages_read} page(s).` });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {

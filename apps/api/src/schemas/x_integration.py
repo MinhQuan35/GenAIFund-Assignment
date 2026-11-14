@@ -11,6 +11,7 @@ class DiscoveryResponse(BaseModel):
     candidates_found: int
     saved: int
     excluded: int
+    excluded_reasons: dict[str, int]
     pages_read: int
     query: str
     message: str
