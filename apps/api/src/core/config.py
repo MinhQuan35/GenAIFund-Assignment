@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     x_api_base_url: str = "https://api.x.com/2"
     x_client_id: str | None = None
     x_client_secret: SecretStr | None = None
-    x_redirect_uri: str | None = "http://127.0.0.1:8002/api/v1/integrations/x/callback"
+    x_redirect_uri: str | None = "http://127.0.0.1:8003/api/v1/integrations/x/callback"
     x_access_token: SecretStr | None = None
     x_refresh_token: SecretStr | None = None
     x_token_encryption_key: SecretStr | None = None
