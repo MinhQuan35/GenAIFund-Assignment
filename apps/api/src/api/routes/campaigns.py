@@ -4,7 +4,9 @@ from fastapi import APIRouter, status
 
 from src.schemas.campaigns import CampaignCreate, CampaignSummary
 from src.schemas.candidates import CandidateCreate, CandidateWorkspaceItem, CampaignWorkspace
+from src.schemas.x_integration import DiscoveryRequest, DiscoveryResponse
 from src.services.campaigns import add_candidate, campaign_workspace, create_campaign, list_campaigns, list_people
+from src.services.x_discovery import discover_candidates
 
 router = APIRouter()
 
@@ -32,3 +34,8 @@ def get_campaign(campaign_id: UUID) -> dict:
 @router.post("/{campaign_id}/candidates", response_model=CandidateWorkspaceItem, status_code=status.HTTP_201_CREATED)
 def post_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     return add_candidate(campaign_id, payload)
+
+
+@router.post("/{campaign_id}/discover", response_model=DiscoveryResponse)
+def discover(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
+    return discover_candidates(campaign_id, payload)

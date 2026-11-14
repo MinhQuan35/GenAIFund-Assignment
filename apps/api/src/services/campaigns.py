@@ -160,6 +160,7 @@ def add_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     profile_url = str(payload.profile_url) if payload.profile_url else f"https://x.com/{username}"
     profile_data = {
         "username": username,
+        "x_user_id": payload.x_user_id,
         "display_name": payload.display_name,
         "bio": payload.bio,
         "location": payload.location,

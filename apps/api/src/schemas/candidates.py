@@ -18,6 +18,7 @@ class CandidateCreate(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     username: str = Field(min_length=1, max_length=15)
+    x_user_id: str | None = Field(default=None, max_length=32)
     display_name: str | None = Field(default=None, max_length=160)
     bio: str | None = Field(default=None, max_length=1000)
     location: str | None = Field(default=None, max_length=160)

@@ -8,6 +8,7 @@ export default function App() {
   const [api, setApi] = useState({ state: 'loading', environment: null });
   const [services, setServices] = useState({ supabase: null, foundry: null });
   const [foundryCheck, setFoundryCheck] = useState({ state: 'idle', message: '' });
+  const [xConnection, setXConnection] = useState({ status: 'checking', username: null, message: 'Checking X account.' });
   const [activeView, setActiveView] = useState('overview');
 
   useEffect(() => {
@@ -27,6 +28,13 @@ export default function App() {
       });
 
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/v1/integrations/x/status')
+      .then((response) => response.json())
+      .then(setXConnection)
+      .catch(() => setXConnection({ status: 'error', username: null, message: 'Could not check X connection.' }));
   }, []);
 
   async function runFoundryCheck() {
@@ -159,6 +167,16 @@ export default function App() {
                   Check Foundry
                 </button>
               </div>
+            </div>
+            <div className="service-row service-row-last">
+              <div className="service-name">
+                <span className={`status-dot status-${xConnection.status === 'connected' ? 'online' : xConnection.status === 'error' ? 'offline' : 'pending'}`} aria-hidden="true" />
+                <div>
+                  <strong>X account</strong>
+                  <span>{xConnection.username ? `Connected as @${xConnection.username}` : xConnection.message}</span>
+                </div>
+              </div>
+              {xConnection.status !== 'connected' && <a className="secondary-button connect-link" href="/api/v1/integrations/x/connect">Connect X</a>}
             </div>
           </section>
 

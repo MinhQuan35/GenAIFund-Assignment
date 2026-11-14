@@ -24,6 +24,7 @@ export default function CampaignWorkspace() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [saving, setSaving] = useState(false);
   const [draftingId, setDraftingId] = useState('');
+  const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     request('/api/v1/campaigns').then(setCampaigns).catch((error) => setMessage({ type: 'error', text: error.message }));
@@ -105,6 +106,23 @@ export default function CampaignWorkspace() {
     }
   }
 
+  async function discoverCandidates() {
+    if (!selected) return;
+    setDiscovering(true);
+    try {
+      const result = await request(`/api/v1/campaigns/${selected.id}/discover`, {
+        method: 'POST',
+        body: JSON.stringify({ max_results: 25 }),
+      });
+      setSelected(await request(`/api/v1/campaigns/${selected.id}`));
+      setMessage({ type: 'success', text: `${result.saved} candidates saved from X. Review the source evidence before drafting outreach.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setDiscovering(false);
+    }
+  }
+
   return (
     <div className="campaign-layout">
       <section className="campaign-list-panel">
@@ -127,7 +145,7 @@ export default function CampaignWorkspace() {
       <section className="campaign-detail-panel">
         {selected ? (
           <>
-            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><span className="environment-label">{selected.candidates.length} candidates</span></div>
+            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><span className="environment-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button></div></div>
             <div className="candidate-grid">
               {selected.candidates.map((candidate) => <article className="candidate-card" key={candidate.id}><div className="candidate-top"><div><strong>@{candidate.username}</strong><span>{candidate.display_name || 'No display name'}</span></div><span className="score-label">{candidate.fit_score ?? '—'} / 100</span></div><p>{candidate.fit_reason}</p><div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div><div className="candidate-card-footer"><span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span><button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button></div></article>)}
               {!selected.candidates.length && <p className="empty-copy">Add a candidate with a source excerpt to create an evidence-backed workspace.</p>}

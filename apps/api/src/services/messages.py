@@ -165,6 +165,15 @@ def list_conversations() -> list[dict]:
     )
     if not messages:
         return []
+    message_ids = [message["id"] for message in messages]
+    interactions = database_operation(
+        lambda: client.table("message_interactions")
+        .select("id,message_id,event_type,sender_x_user_id,text,occurred_at")
+        .in_("message_id", message_ids)
+        .order("occurred_at")
+        .execute()
+        .data
+    )
     candidate_ids = list({message["candidate_id"] for message in messages})
     campaign_ids = list({message["campaign_id"] for message in messages})
     candidates = database_operation(
@@ -183,11 +192,15 @@ def list_conversations() -> list[dict]:
     )
     candidate_by_id = {candidate["id"]: candidate for candidate in candidates}
     campaign_by_id = {campaign["id"]: campaign["name"] for campaign in campaigns}
+    interactions_by_message: dict[str, list[dict]] = {message_id: [] for message_id in message_ids}
+    for interaction in interactions:
+        interactions_by_message[interaction["message_id"]].append(interaction)
     return [
         {
             **message,
             "candidate": candidate_by_id.get(message["candidate_id"]),
             "campaign_name": campaign_by_id.get(message["campaign_id"], "Campaign"),
+            "interactions": interactions_by_message[message["id"]],
         }
         for message in messages
     ]

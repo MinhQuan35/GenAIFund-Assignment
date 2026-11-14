@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     azure_openai_base_url: str | None = None
     azure_openai_api_key: SecretStr | None = None
     azure_openai_deployment_name: str | None = None
+    x_api_base_url: str = "https://api.x.com/2"
+    x_client_id: str | None = None
+    x_client_secret: SecretStr | None = None
+    x_redirect_uri: str | None = "http://127.0.0.1:8001/api/v1/integrations/x/callback"
+    x_access_token: SecretStr | None = None
+    x_refresh_token: SecretStr | None = None
+    x_token_encryption_key: SecretStr | None = None
+    x_oauth_scopes: str = "users.read tweet.read dm.read dm.write offline.access"
 
     @property
     def supabase_server_key(self) -> str | None:
