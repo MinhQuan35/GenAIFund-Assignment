@@ -115,7 +115,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
     )
     drafts = database_operation(
         lambda: client.table("message_drafts")
-        .select("id,candidate_id,content,status,created_at")
+        .select("id,campaign_id,candidate_id,content,status,created_at")
         .eq("campaign_id", str(campaign_id))
         .in_("candidate_id", candidate_ids)
         .order("created_at", desc=True)
