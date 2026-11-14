@@ -5,8 +5,9 @@ DOMAIN_TERMS = (
     "embodied ai", "deep learning", "robotics", "robot", "llm", "inference", "ai",
 )
 ROLE_TERMS = (
-    "co-founder", "cofounder", "founder", "researcher", "research scientist", "engineer",
-    "developer", "builder", "building", "builds", "scientist", "professor", "cto", "technical lead",
+    "co-founder", "cofounder", "founder", "founders", "researcher", "researchers", "research scientist",
+    "research", "engineer", "engineers", "engineering", "developer", "developers", "builder", "builders",
+    "build", "building", "builds", "scientist", "scientists", "professor", "cto", "technical lead",
 )
 REGION_TERMS = (
     "southeast asia", "singapore", "vietnam", "indonesia", "thailand", "malaysia",
@@ -23,7 +24,34 @@ def _matches(text: str, terms: tuple[str, ...]) -> list[str]:
     ]
 
 
-def assess_candidate_quality(candidate: dict, evidence: list[dict]) -> dict:
+ROLE_QUERY_GROUPS = {
+    "builder": ("builder", "builders", "build", "building", "builds"),
+    "founder": ("founder", "founders", "cofounder", "co-founder"),
+    "researcher": ("researcher", "researchers", "research", "scientist", "scientists"),
+    "engineer": ("engineer", "engineers", "engineering"),
+    "developer": ("developer", "developers", "developing"),
+    "operator": ("operator", "operators", "cto", "technical lead"),
+}
+
+
+def campaign_criteria(segment: str) -> dict:
+    normalized = segment.casefold()
+    domains = _matches(segment, DOMAIN_TERMS)
+    roles = [
+        group for group, terms in ROLE_QUERY_GROUPS.items()
+        if _matches(normalized, terms)
+    ]
+    if not roles:
+        roles = ["builder", "founder", "researcher", "engineer", "developer", "operator"]
+    regions = _matches(segment, REGION_TERMS)
+    return {"domains": domains, "roles": roles, "requires_region": bool(regions), "regions": regions}
+
+
+def _role_query_terms(groups: list[str]) -> list[str]:
+    return list(dict.fromkeys(term for group in groups for term in ROLE_QUERY_GROUPS[group]))
+
+
+def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_region: bool = False) -> dict:
     profile_text = " ".join(
         value for value in (candidate.get("bio"), candidate.get("location")) if value
     )
@@ -31,7 +59,7 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict]) -> dict:
     all_text = f"{profile_text} {evidence_text}"
     domain_matches = _matches(all_text, DOMAIN_TERMS)
     role_matches = _matches(all_text, ROLE_TERMS)
-    region_matches = _matches(f"{candidate.get('location') or ''} {evidence_text}", REGION_TERMS)
+    region_matches = _matches(f"{candidate.get('location') or ''} {candidate.get('bio') or ''}", REGION_TERMS)
     post_evidence = [item for item in evidence if item.get("source_type") == "post"]
     has_supporting_sources = len(evidence) >= 2 or any(len(item.get("excerpt", "")) >= 50 for item in post_evidence)
 
@@ -48,10 +76,16 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict]) -> dict:
         missing.append("No clear builder, founder, or researcher role signal.")
     if not has_supporting_sources:
         missing.append("Add another source or a substantial public post as evidence.")
-    if not region_matches:
+    if require_region and not region_matches:
         missing.append("Southeast Asia location is not established by the saved data.")
 
-    eligible = bool(domain_matches and role_matches and has_supporting_sources and score >= 70)
+    eligible = bool(
+        domain_matches
+        and role_matches
+        and has_supporting_sources
+        and (region_matches or not require_region)
+        and score >= 70
+    )
     return {
         "score": score,
         "eligible": eligible,
@@ -61,6 +95,7 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict]) -> dict:
             "region": region_matches,
             "source_count": len(evidence),
             "post_count": len(post_evidence),
+            "region_required": require_region,
         },
         "missing": missing,
     }

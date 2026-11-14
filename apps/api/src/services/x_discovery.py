@@ -7,6 +7,7 @@ from src.integrations.x_api import api_request
 from src.schemas.candidates import CandidateCreate, EvidenceCreate
 from src.schemas.x_integration import DiscoveryRequest
 from src.services.campaigns import _campaign_or_404, add_candidate
+from src.services.candidate_quality import assess_candidate_quality, campaign_criteria
 from src.services.storage import database_client, database_operation
 
 STOP_WORDS = {
@@ -35,18 +36,56 @@ def _score_candidate(segment: str, user: dict, posts: list[dict]) -> tuple[int, 
     return score, reason
 
 
+def _search_query(segment: str, custom_query: str | None) -> tuple[str, dict]:
+    criteria = campaign_criteria(segment)
+    if not criteria["domains"]:
+        raise HTTPException(status_code=422, detail="Target segment must name an AI or robotics domain, such as AI, robotics, or machine learning.")
+    if custom_query:
+        query = custom_query.strip()
+    else:
+        domain_group = "(" + " OR ".join(f'"{term}"' for term in criteria["domains"]) + ")"
+        query = f"{domain_group} -is:retweet"
+    if not query or len(query) > 512:
+        raise HTTPException(status_code=422, detail="Provide a valid X recent-search query.")
+    return query, criteria
+
+
+def _evidence_for(user: dict, posts: list[dict]) -> list[EvidenceCreate]:
+    evidence = []
+    if user.get("description"):
+        evidence.append(EvidenceCreate(
+            source_url=f"https://x.com/{user['username']}",
+            source_type="profile",
+            excerpt=user["description"][:3000],
+        ))
+    evidence.extend(
+        EvidenceCreate(
+            source_url=f"https://x.com/{user['username']}/status/{post['id']}",
+            source_type="post",
+            excerpt=post.get("text", "")[:3000],
+        )
+        for post in posts[:5]
+        if post.get("id") and post.get("text")
+    )
+    return evidence
+
+
+def _candidate_is_qualified(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> bool:
+    evidence_rows = [item.model_dump() for item in evidence]
+    return assess_candidate_quality(
+        user,
+        evidence_rows,
+        require_region=criteria["requires_region"],
+    )["eligible"]
+
+
 def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     client = database_client()
     campaign = _campaign_or_404(client, campaign_id)
-    terms = _segment_terms(campaign["segment"])
-    if not payload.query and not terms:
-        raise HTTPException(status_code=422, detail="Campaign segment needs searchable keywords or provide a custom query.")
-    query = payload.query.strip() if payload.query else ("(" + " OR ".join(f'"{term}"' for term in terms) + ") -is:retweet")
-    if not query or len(query) > 512:
-        raise HTTPException(status_code=422, detail="Provide a valid X recent-search query.")
+    query, criteria = _search_query(campaign["segment"], payload.query)
 
     posts_per_page = min(100, max(10, payload.target_users * 3))
-    max_pages = min(5, max(1, (payload.target_users + 19) // 20))
+    max_pages = min(5, max(1, (payload.target_users + 9) // 10))
     users: dict[str, dict] = {}
     posts_by_user: dict[str, list[dict]] = {}
     next_token = None
@@ -70,31 +109,24 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             if author_id and author_id in users:
                 posts_by_user.setdefault(author_id, []).append(post)
         next_token = result.get("meta", {}).get("next_token")
-        if len(posts_by_user) >= payload.target_users or not next_token:
+        if len(posts_by_user) >= payload.target_users * 2 or not next_token:
             break
 
     saved = 0
+    excluded = 0
     discovered_user_ids: set[str] = set()
-    for author_id, posts in list(posts_by_user.items())[:payload.target_users]:
+    for author_id, posts in posts_by_user.items():
+        if saved >= payload.target_users:
+            break
         user = users[author_id]
         if not user.get("username"):
+            excluded += 1
+            continue
+        evidence = _evidence_for(user, posts)
+        if not evidence or not _candidate_is_qualified(user, evidence, criteria):
+            excluded += 1
             continue
         score, reason = _score_candidate(campaign["segment"], user, posts)
-        evidence = []
-        if user.get("description"):
-            evidence.append(EvidenceCreate(
-                source_url=f"https://x.com/{user['username']}",
-                source_type="profile",
-                excerpt=user["description"][:3000],
-            ))
-        for post in posts[:5]:
-            evidence.append(EvidenceCreate(
-                source_url=f"https://x.com/{user['username']}/status/{post['id']}",
-                source_type="post",
-                excerpt=post.get("text", "")[:3000],
-            ))
-        if not evidence:
-            continue
         candidate = CandidateCreate(
             username=user["username"],
             x_user_id=author_id,
@@ -134,23 +166,9 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             params={"max_results": 5, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
         )
         posts = timeline.get("data", [])
-        evidence = []
-        if user.get("description"):
-            evidence.append(EvidenceCreate(
-                source_url=f"https://x.com/{user['username']}",
-                source_type="profile",
-                excerpt=user["description"][:3000],
-            ))
-        evidence.extend(
-            EvidenceCreate(
-                source_url=f"https://x.com/{user['username']}/status/{post['id']}",
-                source_type="post",
-                excerpt=post.get("text", "")[:3000],
-            )
-            for post in posts
-            if post.get("text")
-        )
-        if not evidence:
+        evidence = _evidence_for(user, posts)
+        if not evidence or not _candidate_is_qualified(user, evidence, criteria):
+            excluded += 1
             continue
         score, reason = _score_candidate(campaign["segment"], user, posts)
         add_candidate(campaign_id, CandidateCreate(
@@ -163,8 +181,9 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
 
     return {
         "requested": payload.target_users,
-        "candidates_found": len(discovered_user_ids),
+        "candidates_found": saved,
         "saved": saved,
+        "excluded": excluded,
         "pages_read": pages_read,
         "query": query,
         "message": "Review each profile and evidence before generating outreach.",

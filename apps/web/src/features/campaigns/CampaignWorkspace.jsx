@@ -28,6 +28,7 @@ export default function CampaignWorkspace() {
   const [discovering, setDiscovering] = useState(false);
   const [targetUsers, setTargetUsers] = useState(20);
   const [removingId, setRemovingId] = useState('');
+  const [clearingCandidates, setClearingCandidates] = useState(false);
 
   useEffect(() => {
     request('/api/v1/campaigns').then(setCampaigns).catch((error) => setMessage({ type: 'error', text: error.message }));
@@ -155,14 +156,27 @@ export default function CampaignWorkspace() {
         body: JSON.stringify({ target_users: Number(targetUsers) }),
       });
       setSelected(await request(`/api/v1/campaigns/${selected.id}`));
-      const outcome = result.saved >= result.requested
-        ? `Found and saved ${result.saved} candidates from X.`
-        : `Found ${result.candidates_found} candidates and saved ${result.saved} of ${result.requested} requested. X returned no more matching recent posts or seed accounts.`;
-      setMessage({ type: 'success', text: `${outcome} Reviewed ${result.pages_read} search page(s). Check the evidence before drafting outreach.` });
+      setMessage({ type: 'success', text: `Saved ${result.saved} qualified candidates and filtered out ${result.excluded}. Search read ${result.pages_read} page(s). Review the evidence before drafting outreach.` });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
       setDiscovering(false);
+    }
+  }
+
+  async function clearCandidates() {
+    if (!selected) return;
+    const confirmed = window.confirm('Remove all unsent candidates and drafts from this campaign? Candidates with sent or pending DMs will stay so outreach history is preserved.');
+    if (!confirmed) return;
+    setClearingCandidates(true);
+    try {
+      const result = await request(`/api/v1/campaigns/${selected.id}/candidates`, { method: 'DELETE' });
+      setSelected(await request(`/api/v1/campaigns/${selected.id}`));
+      setMessage({ type: 'success', text: `Removed ${result.removed} candidates. Kept ${result.preserved} with sent or pending DMs.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setClearingCandidates(false);
     }
   }
 
@@ -188,7 +202,7 @@ export default function CampaignWorkspace() {
       <section className="campaign-detail-panel">
         {selected ? (
           <>
-            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><label className="target-count-label">Target users<input aria-label="Number of users to find" type="number" min="1" max="100" step="1" value={targetUsers} onChange={(event) => setTargetUsers(event.target.value)} disabled={discovering} /></label><span className="environment-label candidate-count-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering || !targetUsers || Number(targetUsers) < 1 || Number(targetUsers) > 100} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button></div></div>
+            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><label className="target-count-label">Target users<input aria-label="Number of users to find" type="number" min="1" max="100" step="1" value={targetUsers} onChange={(event) => setTargetUsers(event.target.value)} disabled={discovering} /></label><span className="environment-label candidate-count-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering || !targetUsers || Number(targetUsers) < 1 || Number(targetUsers) > 100} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button><button className="secondary-button clear-candidates-button" type="button" disabled={clearingCandidates || !selected.candidates.length} onClick={clearCandidates}>{clearingCandidates ? 'Clearing…' : 'Clear candidates'}</button></div></div>
             <div className="candidate-grid">
               {selected.candidates.map((candidate) => (
                 <article className="candidate-card" key={candidate.id}>

@@ -10,6 +10,7 @@ class DiscoveryResponse(BaseModel):
     requested: int
     candidates_found: int
     saved: int
+    excluded: int
     pages_read: int
     query: str
     message: str

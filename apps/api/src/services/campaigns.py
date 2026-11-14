@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from src.schemas.campaigns import CampaignCreate
 from src.schemas.candidates import CandidateCreate
-from src.services.candidate_quality import assess_candidate_quality
+from src.services.candidate_quality import assess_candidate_quality, campaign_criteria
 from src.services.storage import database_client, database_operation
 
 
@@ -134,6 +134,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
         draft_by_candidate.setdefault(draft["candidate_id"], draft)
 
     workspace_candidates = []
+    require_region = campaign_criteria(campaign["segment"])["requires_region"]
     for candidate_id in candidate_ids:
         profile = candidate_by_id.get(candidate_id)
         if profile is None:
@@ -144,7 +145,11 @@ def campaign_workspace(campaign_id: UUID) -> dict:
                 **profile,
                 **link,
                 "evidence": evidence_by_candidate[candidate_id],
-                "qualification": assess_candidate_quality(profile, evidence_by_candidate[candidate_id]),
+                "qualification": assess_candidate_quality(
+                    profile,
+                    evidence_by_candidate[candidate_id],
+                    require_region=require_region,
+                ),
                 "message": draft_by_candidate.get(candidate_id),
             }
         )
@@ -288,6 +293,59 @@ def remove_candidate(campaign_id: UUID, candidate_id: UUID) -> None:
             .eq("id", str(candidate_id))
             .execute()
         )
+
+
+def clear_campaign_candidates(campaign_id: UUID) -> dict:
+    client = database_client()
+    _campaign_or_404(client, campaign_id)
+    links = database_operation(
+        lambda: client.table("campaign_candidates")
+        .select("candidate_id")
+        .eq("campaign_id", str(campaign_id))
+        .execute()
+        .data
+    )
+    removed = 0
+    preserved = 0
+    for link in links:
+        candidate_id = link["candidate_id"]
+        sent_messages = database_operation(
+            lambda candidate_id=candidate_id: client.table("message_drafts")
+            .select("id")
+            .eq("campaign_id", str(campaign_id))
+            .eq("candidate_id", candidate_id)
+            .in_("status", ["send_pending", "sent", "replied"])
+            .limit(1)
+            .execute()
+            .data
+        )
+        if sent_messages:
+            preserved += 1
+            continue
+        database_operation(
+            lambda candidate_id=candidate_id: client.table("campaign_candidates")
+            .delete()
+            .eq("campaign_id", str(campaign_id))
+            .eq("candidate_id", candidate_id)
+            .execute()
+        )
+        remaining_links = database_operation(
+            lambda candidate_id=candidate_id: client.table("campaign_candidates")
+            .select("candidate_id")
+            .eq("candidate_id", candidate_id)
+            .limit(1)
+            .execute()
+            .data
+        )
+        if not remaining_links:
+            database_operation(
+                lambda candidate_id=candidate_id: client.table("candidates")
+                .delete()
+                .eq("id", candidate_id)
+                .execute()
+            )
+        removed += 1
+    return {"removed": removed, "preserved": preserved}
 
 
 def list_people() -> list[dict]:
