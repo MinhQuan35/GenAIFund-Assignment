@@ -112,12 +112,17 @@ export default function CampaignWorkspace() {
   async function scoreWithAI(candidate) {
     setScoringId(candidate.id);
     try {
-      await request(`/api/v1/campaigns/${selected.id}/candidates/${candidate.id}/score`, {
+      const scored = await request(`/api/v1/campaigns/${selected.id}/candidates/${candidate.id}/score`, {
         method: 'POST',
         body: JSON.stringify({}),
       });
       setSelected(await request(`/api/v1/campaigns/${selected.id}`));
-      setMessage({ type: 'success', text: `Foundry scored @${candidate.username} using the saved profile and evidence.` });
+      const evidenceNote = scored.fit_assessment?.evidence_refresh === 'recent_posts_added'
+        ? ' Pulled recent posts from X first.'
+        : scored.fit_assessment?.evidence_refresh === 'x_posts_unavailable'
+          ? ' X posts were unavailable, so it used saved evidence only.'
+          : '';
+      setMessage({ type: 'success', text: `Foundry scored @${candidate.username}.${evidenceNote}` });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {
@@ -202,16 +207,16 @@ export default function CampaignWorkspace() {
                         ['role_relevance', 'Role'],
                         ['domain_relevance', 'AI/robotics'],
                         ['region_relevance', 'Region'],
-                        ['evidence_quality', 'Evidence'],
                       ].map(([key, label]) => (
-                        <span className="score-dimension" key={key}>{label}<strong>{candidate.fit_assessment[key]}</strong></span>
+                        <span className="score-dimension" key={key}>{label}<strong>{candidate.fit_assessment.dimensions?.[key]}</strong></span>
                       ))}
+                      <span className="score-dimension">Confidence<strong>{candidate.fit_assessment.evidence_confidence}</strong></span>
                     </div>
                   )}
                   <div className="evidence-list">{candidate.evidence.map((item) => <a key={item.id} href={item.source_url} target="_blank" rel="noreferrer">{item.source_type}: {item.excerpt}</a>)}</div>
                   <div className="candidate-card-footer">
                     <span className="candidate-status">{candidate.message ? `Draft ${candidate.message.status}` : 'No DM draft yet'}</span>
-                    <button className="secondary-button" type="button" disabled={scoringId === candidate.id || removingId === candidate.id} title="Uses one Foundry request" onClick={() => scoreWithAI(candidate)}>{scoringId === candidate.id ? 'Scoring…' : candidate.fit_assessment ? 'Re-score with AI' : 'Score with AI'}</button>
+                    <button className="secondary-button" type="button" disabled={scoringId === candidate.id || removingId === candidate.id} title="Uses one Foundry request and may fetch up to five X posts" onClick={() => scoreWithAI(candidate)}>{scoringId === candidate.id ? 'Scoring…' : candidate.fit_assessment ? 'Re-score with AI' : 'Score with AI'}</button>
                     <button className="secondary-button" type="button" disabled={draftingId === candidate.id || candidate.message?.status === 'approved'} onClick={() => generateDraft(candidate)}>{draftingId === candidate.id ? 'Generating…' : candidate.message ? 'Regenerate draft' : 'Generate DM'}</button>
                   </div>
                 </article>
