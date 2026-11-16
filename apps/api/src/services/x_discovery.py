@@ -114,35 +114,6 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     timeline_profiles_checked = 0
     users: dict[str, dict] = {}
     posts_by_user: dict[str, list[dict]] = {}
-    next_token = None
-    pages_read = 0
-    for _ in range(max_pages):
-        params = {
-            "query": query,
-            "max_results": posts_per_page,
-            "tweet.fields": "author_id,created_at,lang,public_metrics",
-            "expansions": "author_id",
-            "user.fields": "name,username,description,location,verified,profile_image_url,created_at",
-        }
-        if next_token:
-            params["next_token"] = next_token
-        result = api_request("GET", "/tweets/search/recent", params=params)
-        pages_read += 1
-        for user in result.get("includes", {}).get("users", []):
-            users[user["id"]] = user
-        for post in result.get("data", []):
-            author_id = post.get("author_id")
-            if author_id and author_id in users:
-                posts_by_user.setdefault(author_id, []).append(post)
-        next_token = result.get("meta", {}).get("next_token")
-        if len(posts_by_user) >= payload.target_users * 2 or not next_token:
-            break
-
-    saved = 0
-    excluded = 0
-    excluded_reasons: dict[str, int] = {}
-    discovered_user_ids: set[str] = set()
-
     seeds = database_operation(
         lambda: client.table("campaign_seeds")
         .select("username")
@@ -152,6 +123,36 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         .execute()
         .data
     )
+    pages_read = 0
+    if not seeds:
+        next_token = None
+        for _ in range(max_pages):
+            params = {
+                "query": query,
+                "max_results": posts_per_page,
+                "tweet.fields": "author_id,created_at,lang,public_metrics",
+                "expansions": "author_id",
+                "user.fields": "name,username,description,location,verified,profile_image_url,created_at",
+            }
+            if next_token:
+                params["next_token"] = next_token
+            result = api_request("GET", "/tweets/search/recent", params=params)
+            pages_read += 1
+            for user in result.get("includes", {}).get("users", []):
+                users[user["id"]] = user
+            for post in result.get("data", []):
+                author_id = post.get("author_id")
+                if author_id and author_id in users:
+                    posts_by_user.setdefault(author_id, []).append(post)
+            next_token = result.get("meta", {}).get("next_token")
+            if len(posts_by_user) >= payload.target_users * 2 or not next_token:
+                break
+
+    saved = 0
+    excluded = 0
+    excluded_reasons: dict[str, int] = {}
+    discovered_user_ids: set[str] = set()
+
     for seed in seeds:
         if saved >= payload.target_users or timeline_profiles_checked >= timeline_profile_limit:
             break
