@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -16,7 +16,6 @@ STOP_WORDS = {
     "is", "of", "on", "or", "the", "that", "this", "to", "with", "across",
     "people", "builders", "working",
 }
-MIN_ACCOUNT_AGE_DAYS = 365
 MIN_RELEVANT_POSTS = 5
 TIMELINE_POSTS_TO_CHECK = 20
 
@@ -85,19 +84,6 @@ def _relevant_posts(segment: str, posts: list[dict]) -> list[dict]:
     return relevant
 
 
-def _account_age_failure(user: dict) -> str | None:
-    created_at = user.get("created_at")
-    if not created_at:
-        return "X account creation date unavailable"
-    try:
-        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return "X account creation date unavailable"
-    if created > datetime.now(timezone.utc) - timedelta(days=MIN_ACCOUNT_AGE_DAYS):
-        return "X account is less than 1 year old"
-    return None
-
-
 def _candidate_quality(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> dict:
     evidence_rows = [item.model_dump() for item in evidence]
     return assess_candidate_quality(
@@ -155,11 +141,6 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             excluded += 1
             excluded_reasons["X profile did not include a username"] = excluded_reasons.get("X profile did not include a username", 0) + 1
             continue
-        age_failure = _account_age_failure(user)
-        if age_failure:
-            excluded += 1
-            excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
-            continue
         relevant_posts = _relevant_posts(campaign["segment"], posts)
         if len(relevant_posts) < MIN_RELEVANT_POSTS:
             if timeline_profiles_checked >= timeline_profile_limit:
@@ -202,7 +183,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         candidate = CandidateCreate(
             username=user["username"],
             x_user_id=author_id,
-            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")),
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")) if user.get("created_at") else None,
             display_name=user.get("name"),
             bio=user.get("description"),
             location=user.get("location"),
@@ -243,11 +224,6 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             continue
         if user["id"] in discovered_user_ids:
             continue
-        age_failure = _account_age_failure(user)
-        if age_failure:
-            excluded += 1
-            excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
-            continue
         timeline_profiles_checked += 1
         try:
             timeline = api_request(
@@ -278,7 +254,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         score, reason = _score_candidate(campaign["segment"], user, posts)
         add_candidate(campaign_id, CandidateCreate(
             username=user["username"], x_user_id=user["id"],
-            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")),
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")) if user.get("created_at") else None,
             display_name=user.get("name"),
             bio=user.get("description"), location=user.get("location"), fit_reason=reason,
             fit_score=score, evidence=evidence[:6],

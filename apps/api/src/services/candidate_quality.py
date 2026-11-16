@@ -1,5 +1,4 @@
 import re
-from datetime import datetime, timezone
 
 DOMAIN_TERMS = (
     "artificial intelligence", "machine learning", "computer vision", "large language model",
@@ -74,13 +73,6 @@ def assess_candidate_quality(
         and _matches(item.get("excerpt", ""), tuple(domain_keywords))
     ]
     has_supporting_sources = len(post_evidence) >= 5
-    created_at = candidate.get("x_account_created_at")
-    try:
-        account_age_days = (datetime.now(timezone.utc) - datetime.fromisoformat(created_at.replace("Z", "+00:00"))).days if created_at else None
-    except (TypeError, ValueError):
-        account_age_days = None
-    account_old_enough = account_age_days is not None and account_age_days >= 365
-
     score = (
         (30 if domain_matches else 0)
         + (30 if role_matches else 0)
@@ -94,8 +86,6 @@ def assess_candidate_quality(
         missing.append("No clear builder, founder, or researcher role signal.")
     if not has_supporting_sources:
         missing.append(f"Need at least 5 public posts containing campaign keywords; found {len(post_evidence)}.")
-    if not account_old_enough:
-        missing.append("X account must be at least 1 year old; creation date is missing or account is newer.")
     if require_region and not region_matches:
         missing.append("Southeast Asia location is not established by the saved data.")
 
@@ -103,7 +93,6 @@ def assess_candidate_quality(
         domain_matches
         and role_matches
         and has_supporting_sources
-        and account_old_enough
         and (region_matches or not require_region)
         and score >= 70
     )
@@ -116,8 +105,6 @@ def assess_candidate_quality(
             "region": region_matches,
             "source_count": len(evidence),
             "post_count": len(post_evidence),
-            "account_age_days": account_age_days,
-            "account_old_enough": account_old_enough,
             "region_required": require_region,
         },
         "missing": missing,

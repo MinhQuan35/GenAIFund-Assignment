@@ -226,10 +226,7 @@ export default function CampaignWorkspace() {
                   <div className={`qualification-state ${candidate.qualification?.eligible ? 'qualification-ready' : 'qualification-needs-work'}`}>
                     <strong>{candidate.qualification?.eligible ? 'Ready for AI score' : 'Needs more evidence'}</strong>
                     <span>
-                      {candidate.qualification?.signals?.account_age_days != null
-                        ? `${Math.floor(candidate.qualification.signals.account_age_days / 365)}y account`
-                        : 'Account age unknown'}
-                      {' · '}{candidate.qualification?.signals?.post_count ?? 0} relevant posts
+                      {candidate.qualification?.signals?.post_count ?? 0} relevant posts
                     </span>
                   </div>
                   {!candidate.qualification?.eligible && candidate.qualification?.missing?.length > 0 && (
