@@ -14,6 +14,16 @@ React JavaScript + FastAPI prototype for finding AI and robotics builders on X, 
 
 The prototype never sends a DM during discovery. Do not test-send to people who have not agreed to receive a test message.
 
+## Evaluator Prerequisites
+
+Have these ready before starting the 15-minute setup:
+
+- A Supabase project URL and server-side secret/service-role key.
+- An X Developer App with OAuth 2.0 credentials, the required scopes, access to search/timeline/DM endpoints, and API credits. OAuth credentials alone do not provide endpoint access or credits; X API calls are pay-per-usage.
+- Either an Azure AI Foundry deployment and key, or an OpenAI API key/model.
+
+Without existing accounts, credentials, and X access/credits, the app can start locally, but live discovery, AI scoring, or DM testing cannot be completed within 15 minutes. Evaluators should use their own authorized accounts and keys, not the repository owner's credentials.
+
 ## 15-Minute Setup
 
 The under-15-minute setup assumes the evaluator already has working Supabase, X Developer App credentials/access, and one LLM API credential. Creating those external accounts, obtaining X endpoint access, or buying X credits is outside the setup time.
