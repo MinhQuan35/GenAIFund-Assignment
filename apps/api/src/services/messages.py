@@ -54,6 +54,17 @@ def draft_message(campaign_id: UUID, candidate_id: UUID) -> dict:
     if not post_evidence:
         raise HTTPException(status_code=422, detail="Add a public post as evidence before generating a personalized DM.")
     post_to_reference = post_evidence[-1]
+    existing = database_operation(
+        lambda: client.table("message_drafts")
+        .select("id,content")
+        .eq("campaign_id", str(campaign_id))
+        .eq("candidate_id", str(candidate_id))
+        .in_("status", ["draft", "rejected"])
+        .limit(1)
+        .execute()
+        .data
+    )
+    previous_draft = existing[0] if existing else None
     evidence_text = "\n".join(
         f"- {item['source_type']}: {item['excerpt']} ({item['source_url']})" for item in evidence
     )
@@ -63,12 +74,14 @@ Do not mention scores or that this was generated. Keep it under 500 characters.
 The message must specifically refer to one concrete idea or detail from the selected recent post below.
 Do not write a generic profile-based opener without referencing that post. Paraphrase faithfully; do not invent reactions or details.
 Include one light invitation to a conversation. Return only the message text.
+If a previous unsent draft is supplied, write a meaningfully different version: choose a different evidence point or conversational angle and avoid reusing its distinctive wording.
 
 Candidate: @{candidate['username']} ({candidate.get('display_name') or 'unknown name'})
 Bio: {candidate.get('bio') or 'not provided'}
 Location: {candidate.get('location') or 'not provided'}
 Fit reason: {fit['fit_reason']}
 Selected recent post to reference: {post_to_reference['excerpt']} ({post_to_reference['source_url']})
+Previous unsent draft: {previous_draft['content'] if previous_draft else 'none'}
 Evidence:
 {evidence_text}
 """
@@ -76,21 +89,11 @@ Evidence:
         content = generate_text(prompt, max_output_tokens=180)
     except FoundryIntegrationError as error:
         raise HTTPException(status_code=502, detail=str(error)) from None
-    existing = database_operation(
-        lambda: client.table("message_drafts")
-        .select("id")
-        .eq("campaign_id", str(campaign_id))
-        .eq("candidate_id", str(candidate_id))
-        .in_("status", ["draft", "rejected"])
-        .limit(1)
-        .execute()
-        .data
-    )
     if existing:
         rows = database_operation(
             lambda: client.table("message_drafts")
             .update({"content": content, "status": "draft", "approved_at": None})
-            .eq("id", existing[0]["id"])
+            .eq("id", previous_draft["id"])
             .execute()
             .data
         )
