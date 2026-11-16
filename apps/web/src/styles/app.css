@@ -110,6 +110,7 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .detail-actions .primary-button { min-height: 31px; padding: 0 10px; font-size: 11px; cursor: pointer; white-space: nowrap; }
 .clear-candidates-button { min-height: 31px; color: #8c4b43; white-space: nowrap; }
 .clear-candidates-button:hover:not(:disabled) { background: #fff2ef; border-color: #e8c9c3; }
+.low-cost-demo-button { min-height: 31px; color: #416c59; white-space: nowrap; }
 .target-count-label { display: grid; gap: 3px; color: #76837d; font-size: 9px; font-weight: 600; }
 .target-count-label input { width: 68px; height: 31px; padding: 4px 7px; background: #fff; font-size: 11px; }
 .candidate-count-label { display: inline-flex; align-items: center; min-height: 31px; padding: 0 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }

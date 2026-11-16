@@ -288,3 +288,92 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         "query": query,
         "message": "Review each profile and evidence before generating outreach.",
     }
+
+
+def discover_single_seed_demo(campaign_id: UUID) -> dict:
+    client = database_client()
+    campaign = _campaign_or_404(client, campaign_id)
+    criteria = campaign_criteria(campaign["segment"])
+    if not criteria["domains"]:
+        raise HTTPException(status_code=422, detail="Target segment must name an AI or robotics domain.")
+    seeds = database_operation(
+        lambda: client.table("campaign_seeds")
+        .select("username")
+        .eq("campaign_id", str(campaign_id))
+        .order("username")
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not seeds:
+        raise HTTPException(status_code=422, detail="Add one seed account to this campaign before using the low-cost demo.")
+
+    username = seeds[0]["username"]
+    profile_result = api_request(
+        "GET",
+        f"/users/by/username/{username}",
+        params={"user.fields": "name,username,description,location,created_at"},
+    )
+    user = profile_result.get("data", {})
+    if not user.get("id") or not user.get("username"):
+        raise HTTPException(status_code=404, detail="X could not resolve the campaign seed account.")
+
+    timeline = api_request(
+        "GET",
+        f"/users/{user['id']}/tweets",
+        params={
+            "max_results": 5,
+            "tweet.fields": "created_at,lang",
+            "exclude": "retweets,replies",
+        },
+    )
+    relevant_posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+    evidence = _evidence_for(user, relevant_posts)
+    quality = _candidate_quality(user, evidence, criteria) if evidence else {
+        "eligible": False,
+        "missing": [f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"],
+    }
+    if len(relevant_posts) < MIN_RELEVANT_POSTS or not quality["eligible"]:
+        reasons = quality["missing"]
+        if len(relevant_posts) < MIN_RELEVANT_POSTS:
+            reasons = [f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"]
+        return {
+            "requested": 1,
+            "candidates_found": 0,
+            "saved": 0,
+            "excluded": 1,
+            "excluded_reasons": {reason: 1 for reason in reasons},
+            "pages_read": 0,
+            "timeline_profiles_checked": 1,
+            "timeline_profile_limit": 1,
+            "query": f"seed:{user['username']}",
+            "message": "Low-cost seed check completed without a qualifying candidate.",
+        }
+
+    fit_score, fit_reason = _score_candidate(campaign["segment"], user, relevant_posts)
+    add_candidate(
+        campaign_id,
+        CandidateCreate(
+            username=user["username"],
+            x_user_id=user["id"],
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")) if user.get("created_at") else None,
+            display_name=user.get("name"),
+            bio=user.get("description"),
+            location=user.get("location"),
+            fit_reason=fit_reason,
+            fit_score=fit_score,
+            evidence=evidence,
+        ),
+    )
+    return {
+        "requested": 1,
+        "candidates_found": 1,
+        "saved": 1,
+        "excluded": 0,
+        "excluded_reasons": {},
+        "pages_read": 0,
+        "timeline_profiles_checked": 1,
+        "timeline_profile_limit": 1,
+        "query": f"seed:{user['username']}",
+        "message": "Low-cost seed check completed. Review the profile and evidence before drafting outreach.",
+    }

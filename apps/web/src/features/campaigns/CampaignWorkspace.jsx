@@ -26,6 +26,7 @@ export default function CampaignWorkspace() {
   const [draftingId, setDraftingId] = useState('');
   const [scoringId, setScoringId] = useState('');
   const [discovering, setDiscovering] = useState(false);
+  const [checkingSeed, setCheckingSeed] = useState(false);
   const [targetUsers, setTargetUsers] = useState(20);
   const [removingId, setRemovingId] = useState('');
   const [clearingCandidates, setClearingCandidates] = useState(false);
@@ -173,6 +174,31 @@ export default function CampaignWorkspace() {
     }
   }
 
+  async function runLowCostSeedDemo() {
+    if (!selected?.seed_accounts?.length) return;
+    setCheckingSeed(true);
+    try {
+      const result = await request(`/api/v1/campaigns/${selected.id}/discover-seed-demo`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setSelected(await request(`/api/v1/campaigns/${selected.id}`));
+      const reasons = Object.entries(result.excluded_reasons || {})
+        .map(([reason, count]) => `${reason} (${count})`)
+        .join('; ');
+      setMessage({
+        type: result.saved ? 'success' : 'error',
+        text: result.saved
+          ? `Saved @${selected.seed_accounts[0]} from one seed profile and up to five posts. Review evidence before outreach.`
+          : `Seed @${selected.seed_accounts[0]} did not qualify${reasons ? `: ${reasons}` : '.'}`,
+      });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setCheckingSeed(false);
+    }
+  }
+
   async function clearCandidates() {
     if (!selected) return;
     const confirmed = window.confirm('Remove all unsent candidates and drafts from this campaign? Candidates with sent or pending DMs will stay so outreach history is preserved.');
@@ -211,7 +237,7 @@ export default function CampaignWorkspace() {
       <section className="campaign-detail-panel">
         {selected ? (
           <>
-            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><label className="target-count-label">Target users<input aria-label="Number of users to find" type="number" min="1" max="100" step="1" value={targetUsers} onChange={(event) => setTargetUsers(event.target.value)} disabled={discovering} /></label><span className="environment-label candidate-count-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering || !targetUsers || Number(targetUsers) < 1 || Number(targetUsers) > 100} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button><button className="secondary-button clear-candidates-button" type="button" disabled={clearingCandidates || !selected.candidates.length} onClick={clearCandidates}>{clearingCandidates ? 'Clearing…' : 'Clear candidates'}</button></div></div>
+            <div className="detail-header"><div><p className="eyebrow">CAMPAIGN · {selected.status.toUpperCase()}</p><h2>{selected.name}</h2><p>{selected.segment}</p></div><div className="detail-actions"><label className="target-count-label">Target users<input aria-label="Number of users to find" type="number" min="1" max="100" step="1" value={targetUsers} onChange={(event) => setTargetUsers(event.target.value)} disabled={discovering || checkingSeed} /></label><span className="environment-label candidate-count-label">{selected.candidates.length} candidates</span><button className="primary-button" type="button" disabled={discovering || checkingSeed || !targetUsers || Number(targetUsers) < 1 || Number(targetUsers) > 100} onClick={discoverCandidates}>{discovering ? 'Searching…' : 'Find on X'}</button><button className="secondary-button low-cost-demo-button" type="button" disabled={discovering || checkingSeed || !selected.seed_accounts?.length} title="Reads one seed profile and up to five posts; no Recent Search" onClick={runLowCostSeedDemo}>{checkingSeed ? 'Checking seed…' : 'Seed demo ≤ $0.05'}</button><button className="secondary-button clear-candidates-button" type="button" disabled={clearingCandidates || !selected.candidates.length} onClick={clearCandidates}>{clearingCandidates ? 'Clearing…' : 'Clear candidates'}</button></div></div>
             <div className="candidate-grid">
               {selected.candidates.map((candidate) => (
                 <article className="candidate-card" key={candidate.id}>
