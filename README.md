@@ -1,37 +1,74 @@
-# GenAI Fund Outreach
+# GenAI Fund Outreach Prototype
 
-Prototype workspace for discovering relevant AI and robotics builders and preparing reviewed outreach.
+React JavaScript + FastAPI prototype for finding AI and robotics builders on X, reviewing evidence, scoring candidate fit, drafting personalized DMs, and tracking approved test outreach.
 
-## Applications
+## What It Does
 
-- `apps/web`: React JavaScript frontend powered by Vite.
-- `apps/api`: FastAPI backend.
-- Supabase, X OAuth/discovery/DM, and configurable LLM integrations are wired.
+- Creates outreach campaigns from a segment and optional X seed accounts.
+- Finds candidates through X recent search or by inspecting configured seed accounts.
+- Filters candidates using profile/post evidence, role relevance, and segment keywords.
+- Scores qualified candidates with the selected LLM provider and shows evidence confidence separately.
+- Drafts DMs from saved evidence for human review and approval.
+- Sends only after approval and an explicit test-recipient confirmation.
+- Tracks sent messages and syncs replies.
 
-## Quick setup
+The prototype never sends a DM during discovery. Do not test-send to people who have not agreed to receive a test message.
 
-This setup is under 15 minutes when the evaluator already has working Supabase, Azure AI Foundry, and X Developer credentials with API access/credits. Creating those external projects or obtaining X access is not included in that time.
+## 15-Minute Setup
 
-### 1. Configure local credentials
+The under-15-minute setup assumes the evaluator already has working Supabase, X Developer App credentials/access, and one LLM API credential. Creating those external accounts, obtaining X endpoint access, or buying X credits is outside the setup time.
 
-Prerequisites: Python 3.11+, Node.js 20.19+ or 22.12+, and existing credentials for the services below.
+### Prerequisites
+
+- Python 3.11 or later
+- Node.js 20.19+ or 22.12+
+- Supabase project URL and a server-side secret/service-role key
+- X OAuth 2.0 client ID and client secret, with API access/credits for the endpoints being tested
+- Either an Azure AI Foundry deployment or an OpenAI API key
+
+### 1. Configure Environment
+
+From the repository root in PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Fill the Supabase and X values, then choose one LLM provider:
+Set these values in `.env`:
 
-- Supabase: `SUPABASE_URL` and either `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
-- X: `X_CLIENT_ID` and `X_CLIENT_SECRET`
-- Foundry: set `LLM_PROVIDER=foundry`, then fill `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT_NAME`
-- OpenAI: set `LLM_PROVIDER=openai`, then fill `OPENAI_API_KEY` and `OPENAI_MODEL`; `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`
+| Variable | Value |
+| --- | --- |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase key; never put this in React/Vite variables |
+| `X_CLIENT_ID` | X Developer App OAuth 2.0 client ID |
+| `X_CLIENT_SECRET` | X Developer App client secret |
+| `LLM_PROVIDER` | `foundry` or `openai` |
 
-Leave `X_ACCESS_TOKEN` and `X_REFRESH_TOKEN` blank; connect the account in the app with OAuth. The local callback is `http://127.0.0.1:8004/api/v1/integrations/x/callback`; register it in the X Developer Portal with `users.read tweet.read dm.read dm.write offline.access`. OAuth tokens are stored encrypted in Supabase. Local development derives the encryption key from the Supabase server key; deployments should set `X_TOKEN_ENCRYPTION_KEY` explicitly.
+For `LLM_PROVIDER=foundry`, also set `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT_NAME`. The base URL ends with `/openai/v1/`, not `/responses`.
 
-### 2. Apply Supabase migrations
+For `LLM_PROVIDER=openai`, set `OPENAI_API_KEY` and `OPENAI_MODEL`. `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`.
 
-In Supabase SQL Editor, run these files in order:
+Leave `X_ACCESS_TOKEN` and `X_REFRESH_TOKEN` blank. The app obtains and stores OAuth tokens after the user connects X. For local development, the token encryption key is derived from the Supabase server key; deployments should set a dedicated `X_TOKEN_ENCRYPTION_KEY`.
+
+### 2. Configure X OAuth
+
+In the X Developer Portal, enable OAuth 2.0 Authorization Code with PKCE and add this exact callback URL:
+
+```text
+http://127.0.0.1:8004/api/v1/integrations/x/callback
+```
+
+Grant these scopes:
+
+```text
+users.read tweet.read dm.read dm.write offline.access
+```
+
+The OAuth scopes do not by themselves guarantee endpoint access. The X Developer Project must have access/credits for search, user timeline, and DM endpoints used by the prototype.
+
+### 3. Apply Database Migrations
+
+In the Supabase SQL Editor, run these files in order:
 
 1. `supabase/migrations/202611130001_create_outreach_schema.sql`
 2. `supabase/migrations/202611140001_add_x_integration.sql`
@@ -39,9 +76,13 @@ In Supabase SQL Editor, run these files in order:
 4. `supabase/migrations/202611160001_add_x_account_age.sql`
 5. `supabase/migrations/202611160002_add_campaign_candidate_archive.sql`
 
-### 3. Start the apps
+The migrations enable RLS and restrict application data access to the backend service key. React does not use a Supabase service-role key.
 
-Terminal 1:
+### 4. Start Locally
+
+Open two PowerShell terminals.
+
+Terminal 1, API:
 
 ```powershell
 cd apps/api
@@ -51,7 +92,7 @@ pip install -r requirements.txt
 uvicorn src.main:app --reload --port 8004
 ```
 
-Terminal 2:
+Terminal 2, web app:
 
 ```powershell
 cd apps/web
@@ -59,60 +100,69 @@ npm install
 npm run dev
 ```
 
-Open `http://127.0.0.1:5173`, then connect X from Overview. API docs: `http://127.0.0.1:8004/docs`.
+Open `http://127.0.0.1:5173`, then go to Overview and select **Connect X**. API documentation is at `http://127.0.0.1:8004/docs`.
 
-### 4. Verify connections
+If port 5173 is already in use, stop the other Vite process or change the Vite port and proxy in `apps/web/vite.config.js`.
 
-`GET /api/v1/health` checks Supabase and reports the selected model provider configuration. The **Check model** action sends a billable test request. X status is shown in Overview; connect through OAuth before discovery or DM actions.
+## Docker Setup
 
-### Docker container
-
-With Docker Desktop installed, existing service credentials ready, and migrations applied, the complete web app and API run in one container:
+Docker runs the built React app and FastAPI together in one container on port 8004. Configure `.env` and apply the Supabase migrations first.
 
 ```powershell
 Copy-Item .env.example .env
-# Fill the provider and service credentials described above.
+# Fill .env with the credentials described above.
 docker compose up --build
 ```
 
-Open `http://127.0.0.1:8004`. Set `APP_PUBLIC_URL` to that URL so the X OAuth callback returns to the container-served app. Register `http://127.0.0.1:8004/api/v1/integrations/x/callback` in the X Developer Portal. Stop the container with Ctrl+C.
+Open `http://127.0.0.1:8004`. Set `APP_PUBLIC_URL` to the URL the evaluator opens; for local Docker it is `http://127.0.0.1:8004`. For local Docker, register `http://127.0.0.1:8004/api/v1/integrations/x/callback` in X. If hosting elsewhere, set both `APP_PUBLIC_URL` and `X_REDIRECT_URI` to the deployed HTTPS URLs and register that exact callback in X.
 
-## Run locally
+Stop the container with Ctrl+C. The container receives credentials at runtime from `.env`; secrets are not copied into the image. Never commit `.env`.
 
-### Backend
+This is a single-user evaluator setup with no application login. Run it locally or behind access controls; do not expose the container publicly with a Supabase server key in its environment.
 
-```powershell
-cd apps/api
-py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn src.main:app --reload --port 8004
-```
+## Demo Workflow
 
-The API is available at `http://localhost:8004`. OpenAPI docs are at `http://localhost:8004/docs`.
+1. Connect X from Overview.
+2. Create a campaign with a clear segment. Optionally provide seed usernames at creation time.
+3. Set **Target users** and click **Find on X**.
+4. Review the candidates and their evidence. Candidates need at least two matching posts plus role/domain evidence; account age is not a filter.
+5. Click **Score with AI** on a qualified candidate. This makes one billable LLM request.
+6. Click **Generate DM**, edit/review it in Conversations, and approve it.
+7. Send only to an account you control or a person who agreed to the test. Confirm the recipient in the app.
+8. Click **Sync replies** to check for a response.
 
-### Frontend
+### Seed Search Behavior
 
-In a second terminal:
+When a campaign has seed accounts, **Find on X** checks the configured seed accounts first and skips broad Recent Search for that run. Each seed is checked against the same profile/role and relevant-post criteria; location contributes to fit when present but is not a hard requirement if the profile omits it. If no seed is configured, discovery uses X Recent Search from the last seven days.
 
-```powershell
-cd apps/web
-npm install
-npm run dev
-```
+Discovery reads up to 10 timeline posts per checked account and checks at most `min(4, target users)` timelines per run. Recent Search itself returns at least 10 posts per request. X charges per resource returned, so the target-user count is not a strict cost cap; monitor the X Developer Console balance before each live search.
 
-Vite serves the app at `http://localhost:5173` and proxies `/api` requests to FastAPI on port 8004.
+## Test Accounts Used
 
-`GET /api/v1/health` checks Supabase connectivity and reports whether Foundry is configured. `POST /api/v1/integrations/foundry/check` sends a short model request and may incur a small usage charge.
+The demo flow used sender `@HunhQun305` and test recipient `@huynhquan5w`. The recipient accepted the message request and replied during the test. These accounts are for evaluating the workflow, not outreach prospects. Only use them for another test if they remain under your control; otherwise substitute accounts you control or recipients who have agreed to participate.
 
-## X setup
+## Service Checks
 
-In the X Developer Portal, enable OAuth 2.0 Authorization Code with PKCE and register this exact local callback URL: `http://127.0.0.1:8004/api/v1/integrations/x/callback`. Grant `users.read`, `tweet.read`, `dm.read`, `dm.write`, and `offline.access`. Set `X_CLIENT_ID` and `X_CLIENT_SECRET`, restart FastAPI, then use **Connect X** in the app. OAuth access and refresh tokens are encrypted before they are stored in Supabase. For a deployed environment, set a dedicated `X_TOKEN_ENCRYPTION_KEY` and register the deployed callback URL.
+- `GET /api/v1/health`: checks Supabase connectivity and reports the selected LLM provider configuration.
+- `POST /api/v1/integrations/llm/check`: sends a short, billable model request.
+- `GET /api/v1/integrations/x/status`: checks the connected X account.
 
-The campaign **Find on X** action accepts a target of 1–100 candidates. If seed accounts are configured, it checks those first and skips broad Recent Search for that run; otherwise it searches posts from the last seven days, following up to five result pages. Each saved candidate must have at least two authored posts containing domain keywords from the segment, and profile/evidence supporting both the AI/robotics domain and a relevant builder, founder, researcher, or related role. Account age is not a filter. Southeast Asia location improves the fit score but is not a hard exclusion when the profile omits location; a region mention alone can never qualify a candidate without domain and role evidence. Discovery reads up to 10 timeline posts per author and checks at most `min(4, target)` timelines per run; matching posts from search and timeline are combined and deduplicated. X plan/endpoint access and rate limits apply. A no-AI quality gate shows relevant-post count before enabling **Score with AI**. **Score with AI** sends the saved profile and evidence to Foundry for one candidate at a time. If no post evidence is saved, it tries to fetch up to five recent public posts from X. Fit score uses role/domain/region; evidence confidence is reported separately. Each click uses a billable Foundry request and may incur X read charges when fetching posts. **Clear candidates** removes unsent candidates and drafts while preserving candidates with sent/pending DMs and their outreach history. DM sending is available only after a draft is approved and the operator confirms the recipient is a controlled test account or has agreed to the test. A send with an uncertain network outcome remains locked in `send_pending` to avoid a duplicate. **Sync replies** reads DM events for tracked sent conversations.
+The **Check model** button makes a billable LLM request. Do not use it just to inspect configuration if minimizing usage is important.
 
-The backend reads the root `.env` file. Start from `.env.example` when configuring a new checkout. Keep secrets in `.env`; never expose server keys through `VITE_` variables.
+## Troubleshooting
 
-## Demo accounts
+| Symptom | Check |
+| --- | --- |
+| Supabase reports unavailable | Verify `SUPABASE_URL` and the server-side key; confirm migrations ran in order |
+| X OAuth fails | Confirm Client ID/Secret, scopes, and the exact callback URL in the X Developer Portal |
+| X returns 402 | Check project credits/balance in X Developer Console |
+| X returns 403 | Check endpoint access for the X project and the OAuth scopes; scopes alone do not enable every endpoint |
+| No candidates found | Read the exclusion reasons; broaden the segment or add a relevant seed account. A seed must meet the same evidence criteria |
+| LLM call fails | Check `LLM_PROVIDER` and only the credentials for that provider |
 
-The test flow used sender `@HunhQun305` and recipient `@huynhquan5w` (the test recipient account created for this demo). These are test accounts, not outreach prospects. The recipient's message request was accepted and replied to during the demo. Do not send test messages to other candidates unless they control the account or have explicitly agreed.
+## Security and Costs
+
+- Keep all credentials in `.env`; `.env` is gitignored.
+- Supabase server keys and X client secret are used only by FastAPI.
+- X reads/searches, DM writes, and model requests may incur usage charges. X pricing is per returned resource and can change; check the current balance and rates in the provider console before demos.
+- Do not send unsolicited test outreach. The operator approval step is required before a DM can be sent.
