@@ -16,15 +16,20 @@ class Settings(BaseSettings):
     app_name: str = "GenAI Fund Outreach API"
     environment: str = "development"
     api_v1_prefix: str = "/api/v1"
+    app_public_url: str | None = None
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     supabase_url: str | None = None
     supabase_secret_key: SecretStr | None = None
     supabase_service_role_key: SecretStr | None = None
     database_url: str | None = None
     direct_url: str | None = None
+    llm_provider: str = "foundry"
     azure_openai_base_url: str | None = None
     azure_openai_api_key: SecretStr | None = None
     azure_openai_deployment_name: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_api_key: SecretStr | None = None
+    openai_model: str = "gpt-4o"
     x_api_base_url: str = "https://api.x.com/2"
     x_client_id: str | None = None
     x_client_secret: SecretStr | None = None
@@ -43,7 +48,7 @@ class Settings(BaseSettings):
 
     @property
     def foundry_is_configured(self) -> bool:
-        return all(
+        return self.llm_provider.casefold() == "foundry" and all(
             value and value.strip()
             for value in (
                 self.azure_openai_base_url,
@@ -51,6 +56,12 @@ class Settings(BaseSettings):
                 self.azure_openai_api_key.get_secret_value() if self.azure_openai_api_key else None,
             )
         )
+
+    @property
+    def llm_is_configured(self) -> bool:
+        if self.llm_provider.casefold() == "openai":
+            return bool(self.openai_api_key and self.openai_api_key.get_secret_value().strip() and self.openai_model.strip())
+        return self.foundry_is_configured
 
 
 settings = Settings()

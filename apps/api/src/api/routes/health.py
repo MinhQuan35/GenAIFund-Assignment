@@ -12,7 +12,7 @@ router = APIRouter()
 def get_health() -> HealthResponse:
     dependencies = {
         "supabase": check_supabase_connection(),
-        "foundry": foundry_configuration_status(),
+        "ai_model": foundry_configuration_status(),
     }
     status = "ok" if dependencies["supabase"].status == "connected" else "degraded"
     return HealthResponse(

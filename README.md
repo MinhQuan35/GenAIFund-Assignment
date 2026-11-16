@@ -6,7 +6,7 @@ Prototype workspace for discovering relevant AI and robotics builders and prepar
 
 - `apps/web`: React JavaScript frontend powered by Vite.
 - `apps/api`: FastAPI backend.
-- Supabase, Azure AI Foundry, and X OAuth/discovery/DM integrations are wired.
+- Supabase, X OAuth/discovery/DM, and configurable LLM integrations are wired.
 
 ## Quick setup
 
@@ -20,11 +20,12 @@ Prerequisites: Python 3.11+, Node.js 20.19+ or 22.12+, and existing credentials 
 Copy-Item .env.example .env
 ```
 
-Fill these required values in the root `.env`:
+Fill the Supabase and X values, then choose one LLM provider:
 
-- `SUPABASE_URL` and either `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
-- `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT_NAME`
-- `X_CLIENT_ID` and `X_CLIENT_SECRET`
+- Supabase: `SUPABASE_URL` and either `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
+- X: `X_CLIENT_ID` and `X_CLIENT_SECRET`
+- Foundry: set `LLM_PROVIDER=foundry`, then fill `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_API_KEY`, and `AZURE_OPENAI_DEPLOYMENT_NAME`
+- OpenAI: set `LLM_PROVIDER=openai`, then fill `OPENAI_API_KEY` and `OPENAI_MODEL`; `OPENAI_BASE_URL` defaults to `https://api.openai.com/v1`
 
 Leave `X_ACCESS_TOKEN` and `X_REFRESH_TOKEN` blank; connect the account in the app with OAuth. The local callback is `http://127.0.0.1:8004/api/v1/integrations/x/callback`; register it in the X Developer Portal with `users.read tweet.read dm.read dm.write offline.access`. OAuth tokens are stored encrypted in Supabase. Local development derives the encryption key from the Supabase server key; deployments should set `X_TOKEN_ENCRYPTION_KEY` explicitly.
 
@@ -62,7 +63,19 @@ Open `http://127.0.0.1:5173`, then connect X from Overview. API docs: `http://12
 
 ### 4. Verify connections
 
-`GET /api/v1/health` checks Supabase and reports Foundry configuration. The **Check Foundry** action sends a billable test request. X status is shown in Overview; connect through OAuth before discovery or DM actions.
+`GET /api/v1/health` checks Supabase and reports the selected model provider configuration. The **Check model** action sends a billable test request. X status is shown in Overview; connect through OAuth before discovery or DM actions.
+
+### Docker container
+
+With Docker Desktop installed, existing service credentials ready, and migrations applied, the complete web app and API run in one container:
+
+```powershell
+Copy-Item .env.example .env
+# Fill the provider and service credentials described above.
+docker compose up --build
+```
+
+Open `http://127.0.0.1:8004`. Set `APP_PUBLIC_URL` to that URL so the X OAuth callback returns to the container-served app. Register `http://127.0.0.1:8004/api/v1/integrations/x/callback` in the X Developer Portal. Stop the container with Ctrl+C.
 
 ## Run locally
 
@@ -99,3 +112,7 @@ In the X Developer Portal, enable OAuth 2.0 Authorization Code with PKCE and reg
 The campaign **Find on X** action accepts a target of 1–100 candidates. If seed accounts are configured, it checks those first and skips broad Recent Search for that run; otherwise it searches posts from the last seven days, following up to five result pages. Each saved candidate must have at least two authored posts containing domain keywords from the segment, and profile/evidence supporting both the AI/robotics domain and a relevant builder, founder, researcher, or related role. Account age is not a filter. Southeast Asia location improves the fit score but is not a hard exclusion when the profile omits location; a region mention alone can never qualify a candidate without domain and role evidence. Discovery reads up to 10 timeline posts per author and checks at most `min(4, target)` timelines per run; matching posts from search and timeline are combined and deduplicated. X plan/endpoint access and rate limits apply. A no-AI quality gate shows relevant-post count before enabling **Score with AI**. **Score with AI** sends the saved profile and evidence to Foundry for one candidate at a time. If no post evidence is saved, it tries to fetch up to five recent public posts from X. Fit score uses role/domain/region; evidence confidence is reported separately. Each click uses a billable Foundry request and may incur X read charges when fetching posts. **Clear candidates** removes unsent candidates and drafts while preserving candidates with sent/pending DMs and their outreach history. DM sending is available only after a draft is approved and the operator confirms the recipient is a controlled test account or has agreed to the test. A send with an uncertain network outcome remains locked in `send_pending` to avoid a duplicate. **Sync replies** reads DM events for tracked sent conversations.
 
 The backend reads the root `.env` file. Start from `.env.example` when configuring a new checkout. Keep secrets in `.env`; never expose server keys through `VITE_` variables.
+
+## Demo accounts
+
+The test flow used sender `@HunhQun305` and recipient `@huynhquan5w` (the test recipient account created for this demo). These are test accounts, not outreach prospects. The recipient's message request was accepted and replied to during the demo. Do not send test messages to other candidates unless they control the account or have explicitly agreed.

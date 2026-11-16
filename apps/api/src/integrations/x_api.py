@@ -160,7 +160,7 @@ def finish_oauth(code: str, state: str) -> RedirectResponse:
         "expires_in": token.get("expires_in", 7200),
         "scopes": token.get("scope", "").split(),
     })
-    frontend = next(
+    frontend = settings.app_public_url or next(
         (origin for origin in settings.cors_origins if "127.0.0.1" in origin),
         settings.cors_origins[0] if settings.cors_origins else "http://127.0.0.1:5173",
     )

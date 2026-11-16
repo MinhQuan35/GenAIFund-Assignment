@@ -9,8 +9,8 @@ from src.schemas.x_integration import XConnectionStatus
 router = APIRouter()
 
 
-@router.post("/foundry/check", response_model=IntegrationStatus)
-def check_foundry() -> IntegrationStatus:
+@router.post("/llm/check", response_model=IntegrationStatus)
+def check_llm() -> IntegrationStatus:
     return check_foundry_connection()
 
 

@@ -6,8 +6,8 @@ import ConversationsView from '../features/conversations/ConversationsView.jsx';
 
 export default function App() {
   const [api, setApi] = useState({ state: 'loading', environment: null });
-  const [services, setServices] = useState({ supabase: null, foundry: null });
-  const [foundryCheck, setFoundryCheck] = useState({ state: 'idle', message: '' });
+  const [services, setServices] = useState({ supabase: null, ai_model: null });
+  const [modelCheck, setModelCheck] = useState({ state: 'idle', message: '' });
   const [xConnection, setXConnection] = useState({ status: 'checking', username: null, message: 'Checking X account.' });
   const [activeView, setActiveView] = useState('overview');
 
@@ -37,15 +37,15 @@ export default function App() {
       .catch(() => setXConnection({ status: 'error', username: null, message: 'Could not check X connection.' }));
   }, []);
 
-  async function runFoundryCheck() {
-    setFoundryCheck({ state: 'checking', message: 'Sending a short test request…' });
+  async function runModelCheck() {
+    setModelCheck({ state: 'checking', message: 'Sending a short test request…' });
     try {
-      const response = await fetch('/api/v1/integrations/foundry/check', { method: 'POST' });
+      const response = await fetch('/api/v1/integrations/llm/check', { method: 'POST' });
       const result = await response.json();
-      setFoundryCheck({ state: result.status, message: result.message });
-      setServices((current) => ({ ...current, foundry: result }));
+      setModelCheck({ state: result.status, message: result.message });
+      setServices((current) => ({ ...current, ai_model: result }));
     } catch {
-      setFoundryCheck({ state: 'error', message: 'Could not reach the backend.' });
+      setModelCheck({ state: 'error', message: 'Could not reach the backend.' });
     }
   }
 
@@ -153,18 +153,18 @@ export default function App() {
             </div>
             <div className="service-row service-row-last">
               <div className="service-name">
-                <span className={`status-dot status-${serviceState(services.foundry)}`} aria-hidden="true" />
+                <span className={`status-dot status-${serviceState(services.ai_model)}`} aria-hidden="true" />
                 <div>
-                  <strong>Azure AI Foundry</strong>
-                  <span>{foundryCheck.message || services.foundry?.message || 'Deployment connection check'}</span>
+                  <strong>AI model</strong>
+                  <span>{modelCheck.message || services.ai_model?.message || 'Model connection check'}</span>
                 </div>
               </div>
               <div className="service-actions">
-                <span className={`service-state service-state-${serviceState(services.foundry)}`}>
-                  {foundryCheck.state === 'checking' ? 'Checking' : serviceLabel(services.foundry)}
+                <span className={`service-state service-state-${serviceState(services.ai_model)}`}>
+                  {modelCheck.state === 'checking' ? 'Checking' : serviceLabel(services.ai_model)}
                 </span>
-                <button className="secondary-button" type="button" onClick={runFoundryCheck} disabled={foundryCheck.state === 'checking'}>
-                  Check Foundry
+                <button className="secondary-button" type="button" onClick={runModelCheck} disabled={modelCheck.state === 'checking'}>
+                  Check model
                 </button>
               </div>
             </div>

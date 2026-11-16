@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from src.api.router import api_router
 from src.core.config import settings
@@ -19,6 +22,9 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
     application.include_router(api_router, prefix=settings.api_v1_prefix)
+    web_dist = Path(__file__).resolve().parents[2] / "web" / "dist"
+    if web_dist.is_dir():
+        application.mount("/", StaticFiles(directory=web_dist, html=True), name="web")
     return application
 
 
