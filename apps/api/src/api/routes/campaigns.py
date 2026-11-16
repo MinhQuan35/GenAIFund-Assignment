@@ -7,7 +7,7 @@ from src.schemas.candidates import CandidateCreate, CandidateWorkspaceItem, Camp
 from src.schemas.x_integration import DiscoveryRequest, DiscoveryResponse
 from src.services.campaigns import add_candidate, campaign_workspace, clear_campaign_candidates, create_campaign, list_campaigns, list_people, remove_candidate
 from src.services.candidate_scoring import score_candidate
-from src.services.x_discovery import discover_candidates, discover_single_seed_demo
+from src.services.x_discovery import discover_candidates
 
 router = APIRouter()
 
@@ -59,6 +59,3 @@ def discover(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     return discover_candidates(campaign_id, payload)
 
 
-@router.post("/{campaign_id}/discover-seed-demo", response_model=DiscoveryResponse)
-def discover_seed_demo(campaign_id: UUID) -> dict:
-    return discover_single_seed_demo(campaign_id)
