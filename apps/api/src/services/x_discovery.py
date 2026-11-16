@@ -16,7 +16,7 @@ STOP_WORDS = {
     "is", "of", "on", "or", "the", "that", "this", "to", "with", "across",
     "people", "builders", "working",
 }
-MIN_RELEVANT_POSTS = 3
+MIN_RELEVANT_POSTS = 2
 TIMELINE_POSTS_TO_CHECK = 10
 
 

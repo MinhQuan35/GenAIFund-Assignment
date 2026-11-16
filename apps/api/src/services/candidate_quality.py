@@ -72,7 +72,7 @@ def assess_candidate_quality(
         if item.get("source_type") == "post"
         and _matches(item.get("excerpt", ""), tuple(domain_keywords))
     ]
-    has_supporting_sources = len(post_evidence) >= 3
+    has_supporting_sources = len(post_evidence) >= 2
     score = (
         (30 if domain_matches else 0)
         + (30 if role_matches else 0)
@@ -85,7 +85,7 @@ def assess_candidate_quality(
     if not role_matches:
         missing.append("No clear builder, founder, or researcher role signal.")
     if not has_supporting_sources:
-        missing.append(f"Need at least 3 public posts containing campaign keywords; found {len(post_evidence)}.")
+        missing.append(f"Need at least 2 public posts containing campaign keywords; found {len(post_evidence)}.")
     if require_region and not region_matches:
         missing.append("Southeast Asia location is not established by the saved data.")
 
@@ -93,7 +93,6 @@ def assess_candidate_quality(
         domain_matches
         and role_matches
         and has_supporting_sources
-        and (region_matches or not require_region)
         and score >= 70
     )
     return {
