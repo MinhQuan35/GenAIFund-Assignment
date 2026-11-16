@@ -143,7 +143,7 @@ This is a single-user evaluator setup with no application login. Run it locally 
 
 ### Seed Search Behavior
 
-When a campaign has seed accounts, **Find on X** checks the configured seed accounts first and skips broad Recent Search for that run. Each seed is checked against the same profile/role and relevant-post criteria; location contributes to fit when present but is not a hard requirement if the profile omits it. If no seed is configured, discovery uses X Recent Search from the last seven days.
+When a campaign has seed accounts, **Find on X** checks the configured seed accounts first, then runs Recent Search only if the requested candidate count has not been reached. Each seed is checked against the same profile/role and relevant-post criteria; location contributes to fit when present but is not a hard requirement if the profile omits it. If no seed is configured, discovery starts with X Recent Search from the last seven days.
 
 Discovery reads up to 10 timeline posts per checked account and checks at most `min(4, target users)` timelines per run. Recent Search itself returns at least 10 posts per request. X charges per resource returned, so the target-user count is not a strict cost cap; monitor the X Developer Console balance before each live search.
 
