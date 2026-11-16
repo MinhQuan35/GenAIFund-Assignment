@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -90,6 +91,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
         lambda: client.table("campaign_candidates")
         .select("candidate_id,fit_score,fit_reason,fit_assessment,status")
         .eq("campaign_id", str(campaign_id))
+        .is_("removed_at", "null")
         .order("created_at", desc=True)
         .execute()
         .data
@@ -213,7 +215,7 @@ def add_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     if association:
         database_operation(
             lambda: client.table("campaign_candidates")
-            .update({"fit_reason": payload.fit_reason, "fit_score": payload.fit_score})
+            .update({"fit_reason": payload.fit_reason, "fit_score": payload.fit_score, "removed_at": None})
             .eq("campaign_id", str(campaign_id))
             .eq("candidate_id", candidate_id)
             .execute()
@@ -259,42 +261,21 @@ def remove_candidate(campaign_id: UUID, candidate_id: UUID) -> None:
     if not association:
         raise HTTPException(status_code=404, detail="Candidate is not part of this campaign.")
 
-    messages = database_operation(
-        lambda: client.table("message_drafts")
-        .select("id,status,external_message_id")
-        .eq("campaign_id", str(campaign_id))
-        .eq("candidate_id", str(candidate_id))
-        .in_("status", ["send_pending", "sent", "replied"])
-        .limit(1)
-        .execute()
-        .data
-    )
-    if messages or any(message.get("external_message_id") for message in messages):
-        raise HTTPException(status_code=409, detail="This candidate has a sent or pending DM and cannot be removed to preserve its outreach history.")
-
     database_operation(
-        lambda: client.table("campaign_candidates")
+        lambda: client.table("message_drafts")
         .delete()
         .eq("campaign_id", str(campaign_id))
         .eq("candidate_id", str(candidate_id))
+        .in_("status", ["draft", "approved", "rejected"])
         .execute()
     )
-
-    remaining_links = database_operation(
+    database_operation(
         lambda: client.table("campaign_candidates")
-        .select("candidate_id")
+        .update({"removed_at": datetime.now(timezone.utc).isoformat()})
+        .eq("campaign_id", str(campaign_id))
         .eq("candidate_id", str(candidate_id))
-        .limit(1)
         .execute()
-        .data
     )
-    if not remaining_links:
-        database_operation(
-            lambda: client.table("candidates")
-            .delete()
-            .eq("id", str(candidate_id))
-            .execute()
-        )
 
 
 def clear_campaign_candidates(campaign_id: UUID) -> dict:
@@ -304,6 +285,7 @@ def clear_campaign_candidates(campaign_id: UUID) -> dict:
         lambda: client.table("campaign_candidates")
         .select("candidate_id")
         .eq("campaign_id", str(campaign_id))
+        .is_("removed_at", "null")
         .execute()
         .data
     )
@@ -324,28 +306,31 @@ def clear_campaign_candidates(campaign_id: UUID) -> dict:
         if sent_messages:
             preserved += 1
             continue
+        active_messages = database_operation(
+            lambda candidate_id=candidate_id: client.table("message_drafts")
+            .select("id")
+            .eq("campaign_id", str(campaign_id))
+            .eq("candidate_id", candidate_id)
+            .in_("status", ["draft", "approved", "rejected"])
+            .execute()
+            .data
+        )
+        if active_messages:
+            database_operation(
+                lambda candidate_id=candidate_id: client.table("message_drafts")
+                .delete()
+                .eq("campaign_id", str(campaign_id))
+                .eq("candidate_id", candidate_id)
+                .in_("status", ["draft", "approved", "rejected"])
+                .execute()
+            )
         database_operation(
             lambda candidate_id=candidate_id: client.table("campaign_candidates")
-            .delete()
+            .update({"removed_at": datetime.now(timezone.utc).isoformat()})
             .eq("campaign_id", str(campaign_id))
             .eq("candidate_id", candidate_id)
             .execute()
         )
-        remaining_links = database_operation(
-            lambda candidate_id=candidate_id: client.table("campaign_candidates")
-            .select("candidate_id")
-            .eq("candidate_id", candidate_id)
-            .limit(1)
-            .execute()
-            .data
-        )
-        if not remaining_links:
-            database_operation(
-                lambda candidate_id=candidate_id: client.table("candidates")
-                .delete()
-                .eq("id", candidate_id)
-                .execute()
-            )
         removed += 1
     return {"removed": removed, "preserved": preserved}
 
@@ -366,6 +351,7 @@ def list_people() -> list[dict]:
         lambda: client.table("campaign_candidates")
         .select("campaign_id,candidate_id,fit_score,fit_reason,fit_assessment,status")
         .in_("candidate_id", candidate_ids)
+        .is_("removed_at", "null")
         .execute()
         .data
     )
@@ -385,6 +371,7 @@ def list_people() -> list[dict]:
         .data
     ) if links else []
     campaign_names = {campaign["id"]: campaign["name"] for campaign in campaigns}
+    active_candidate_ids = {link["candidate_id"] for link in links}
     links_by_candidate: dict[str, list[dict]] = {candidate_id: [] for candidate_id in candidate_ids}
     evidence_by_candidate: dict[str, list[dict]] = {candidate_id: [] for candidate_id in candidate_ids}
     for link in links:
@@ -400,4 +387,5 @@ def list_people() -> list[dict]:
             "evidence": evidence_by_candidate[candidate["id"]],
         }
         for candidate in candidates
+        if candidate["id"] in active_candidate_ids
     ]

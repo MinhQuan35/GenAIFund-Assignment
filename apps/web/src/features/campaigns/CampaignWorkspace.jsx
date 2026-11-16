@@ -133,7 +133,12 @@ export default function CampaignWorkspace() {
 
   async function removeCandidate(candidate) {
     if (!selected) return;
-    const confirmed = window.confirm(`Remove @${candidate.username} from this campaign?`);
+    const hasOutreachHistory = ['send_pending', 'sent', 'replied'].includes(candidate.message?.status);
+    const confirmed = window.confirm(
+      hasOutreachHistory
+        ? `Hide @${candidate.username} from this campaign? Sent messages and replies will stay in Conversations.`
+        : `Remove @${candidate.username} and its unsent draft from this campaign?`,
+    );
     if (!confirmed) return;
     setRemovingId(candidate.id);
     try {
@@ -214,7 +219,7 @@ export default function CampaignWorkspace() {
                     <div><strong>@{candidate.username}</strong><span>{candidate.display_name || 'No display name'}</span></div>
                     <div className="candidate-tools">
                       <span className="score-label">{candidate.fit_score ?? '—'} / 100</span>
-                      <button className="icon-button remove-candidate-button" type="button" aria-label={`Remove @${candidate.username} from campaign`} title="Remove candidate" disabled={removingId === candidate.id || candidate.message?.status === 'sent' || candidate.message?.status === 'replied' || candidate.message?.status === 'send_pending'} onClick={() => removeCandidate(candidate)}>×</button>
+                      <button className="icon-button remove-candidate-button" type="button" aria-label={`Remove @${candidate.username} from campaign`} title={['send_pending', 'sent', 'replied'].includes(candidate.message?.status) ? 'Hide candidate; keep message history' : 'Remove candidate'} disabled={removingId === candidate.id} onClick={() => removeCandidate(candidate)}>×</button>
                     </div>
                   </div>
                   <p>{candidate.fit_reason}</p>
