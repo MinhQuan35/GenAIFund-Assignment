@@ -142,9 +142,80 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     excluded = 0
     excluded_reasons: dict[str, int] = {}
     discovered_user_ids: set[str] = set()
+
+    seeds = database_operation(
+        lambda: client.table("campaign_seeds")
+        .select("username")
+        .eq("campaign_id", str(campaign_id))
+        .order("username")
+        .limit(10)
+        .execute()
+        .data
+    )
+    for seed in seeds:
+        if saved >= payload.target_users or timeline_profiles_checked >= timeline_profile_limit:
+            break
+        username = seed["username"]
+        try:
+            lookup = api_request(
+                "GET",
+                f"/users/by/username/{username}",
+                params={"user.fields": "name,username,description,location,verified,created_at"},
+            )
+        except HTTPException as error:
+            if error.status_code != 403:
+                raise
+            excluded += 1
+            reason = "X project/access tier does not allow seed profile lookup"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
+        user = lookup.get("data", {})
+        if not user.get("id") or not user.get("username"):
+            continue
+        if user["id"] in discovered_user_ids:
+            continue
+        timeline_profiles_checked += 1
+        try:
+            timeline = api_request(
+                "GET",
+                f"/users/{user['id']}/tweets",
+                params={"max_results": TIMELINE_POSTS_TO_CHECK, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
+            )
+        except HTTPException as error:
+            if error.status_code != 403:
+                raise
+            excluded += 1
+            reason = "X project/access tier does not allow reading seed-account timelines"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
+        posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+        if len(posts) < MIN_RELEVANT_POSTS:
+            excluded += 1
+            reason = f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
+        evidence = _evidence_for(user, posts)
+        quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
+        if not quality["eligible"]:
+            excluded += 1
+            for reason in quality["missing"]:
+                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
+        score, reason = _score_candidate(campaign["segment"], user, posts)
+        add_candidate(campaign_id, CandidateCreate(
+            username=user["username"], x_user_id=user["id"],
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")) if user.get("created_at") else None,
+            display_name=user.get("name"), bio=user.get("description"), location=user.get("location"),
+            fit_reason=reason, fit_score=score, evidence=evidence[:6],
+        ))
+        saved += 1
+        discovered_user_ids.add(user["id"])
+
     for author_id, posts in posts_by_user.items():
         if saved >= payload.target_users:
             break
+        if author_id in discovered_user_ids:
+            continue
         user = users[author_id]
         if not user.get("username"):
             excluded += 1
@@ -204,73 +275,6 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         add_candidate(campaign_id, candidate)
         saved += 1
         discovered_user_ids.add(author_id)
-
-    seeds = database_operation(
-        lambda: client.table("campaign_seeds")
-        .select("username")
-        .eq("campaign_id", str(campaign_id))
-        .order("username")
-        .limit(10)
-        .execute()
-        .data
-    )
-    for seed in seeds:
-        if saved >= payload.target_users:
-            break
-        if timeline_profiles_checked >= timeline_profile_limit:
-            break
-        username = seed["username"]
-        try:
-            lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified,created_at"})
-        except HTTPException as error:
-            if error.status_code != 403:
-                raise
-            excluded += 1
-            reason = "X project/access tier does not allow seed profile lookup"
-            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
-            continue
-        user = lookup.get("data", {})
-        if not user.get("id") or not user.get("username"):
-            continue
-        if user["id"] in discovered_user_ids:
-            continue
-        timeline_profiles_checked += 1
-        try:
-            timeline = api_request(
-                "GET",
-                f"/users/{user['id']}/tweets",
-                params={"max_results": TIMELINE_POSTS_TO_CHECK, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
-            )
-        except HTTPException as error:
-            if error.status_code != 403:
-                raise
-            excluded += 1
-            reason = "X project/access tier does not allow reading seed-account timelines"
-            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
-            continue
-        posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
-        if len(posts) < MIN_RELEVANT_POSTS:
-            excluded += 1
-            reason = f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"
-            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
-            continue
-        evidence = _evidence_for(user, posts)
-        quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
-        if not quality["eligible"]:
-            excluded += 1
-            for reason in quality["missing"]:
-                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
-            continue
-        score, reason = _score_candidate(campaign["segment"], user, posts)
-        add_candidate(campaign_id, CandidateCreate(
-            username=user["username"], x_user_id=user["id"],
-            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")) if user.get("created_at") else None,
-            display_name=user.get("name"),
-            bio=user.get("description"), location=user.get("location"), fit_reason=reason,
-            fit_score=score, evidence=evidence[:6],
-        ))
-        saved += 1
-        discovered_user_ids.add(user["id"])
 
     return {
         "requested": payload.target_users,
