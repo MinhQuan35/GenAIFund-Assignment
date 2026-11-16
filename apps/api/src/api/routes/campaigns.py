@@ -5,7 +5,7 @@ from fastapi import APIRouter, status
 from src.schemas.campaigns import CampaignCreate, CampaignSummary
 from src.schemas.candidates import CandidateCreate, CandidateWorkspaceItem, CampaignWorkspace
 from src.schemas.x_integration import DiscoveryRequest, DiscoveryResponse
-from src.services.campaigns import add_candidate, campaign_workspace, clear_campaign_candidates, create_campaign, list_campaigns, list_people, remove_candidate
+from src.services.campaigns import add_candidate, campaign_workspace, clear_campaign_candidates, create_campaign, delete_campaign, list_campaigns, list_people, remove_candidate
 from src.services.candidate_scoring import score_candidate
 from src.services.x_discovery import discover_candidates
 
@@ -25,6 +25,11 @@ def get_people() -> list[dict]:
 @router.post("", response_model=CampaignSummary, status_code=status.HTTP_201_CREATED)
 def post_campaign(payload: CampaignCreate) -> dict:
     return create_campaign(payload)
+
+
+@router.delete("/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_campaign_route(campaign_id: UUID) -> None:
+    delete_campaign(campaign_id)
 
 
 @router.get("/{campaign_id}", response_model=CampaignWorkspace)

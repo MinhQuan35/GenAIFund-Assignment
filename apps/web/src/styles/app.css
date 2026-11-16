@@ -98,10 +98,13 @@ input:focus, textarea:focus, select:focus { border-color: #62a88f; box-shadow: 0
 .form-button { justify-content: center; width: 100%; min-height: 34px; margin-top: 2px; cursor: pointer; }
 .form-button:disabled { cursor: wait; }
 .campaign-items { display: grid; gap: 2px; padding: 0 8px 10px; border-top: 1px solid #edf0ee; }
-.campaign-item { display: grid; gap: 4px; padding: 11px 8px; color: var(--ink); text-align: left; background: transparent; border: 0; border-bottom: 1px solid #f0f3f1; border-radius: 4px; cursor: pointer; }
+.campaign-item { display: flex; align-items: center; gap: 7px; padding: 5px 6px; color: var(--ink); border-bottom: 1px solid #f0f3f1; border-radius: 4px; }
 .campaign-item:hover, .campaign-item-active { background: #f0f7f4; }
+.campaign-select-button { display: grid; flex: 1; gap: 4px; min-width: 0; padding: 6px 3px; color: var(--ink); text-align: left; background: transparent; border: 0; cursor: pointer; }
 .campaign-item strong { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .campaign-item span { overflow: hidden; color: #7d8984; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.campaign-delete-button { flex: 0 0 auto; padding: 5px 7px; color: #8c4b43; background: transparent; border: 1px solid transparent; border-radius: 4px; font-size: 10px; cursor: pointer; }
+.campaign-delete-button:hover { background: #fff2ef; border-color: #e8c9c3; }
 .empty-copy { padding: 12px 8px; color: #8a9691; font-size: 11px; }
 .detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding: 17px 18px; border-bottom: 1px solid #edf0ee; }
 .detail-header h2 { margin-bottom: 5px; }

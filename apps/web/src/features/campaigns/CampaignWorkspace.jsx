@@ -67,6 +67,27 @@ export default function CampaignWorkspace() {
     }
   }
 
+  async function deleteCampaign(campaign, event) {
+    event.stopPropagation();
+    const confirmed = window.confirm(`Delete campaign “${campaign.name}” and its candidates, evidence, and unsent drafts?`);
+    if (!confirmed) return;
+    try {
+      await request(`/api/v1/campaigns/${campaign.id}`, { method: 'DELETE' });
+      const remaining = campaigns.filter((item) => item.id !== campaign.id);
+      setCampaigns(remaining);
+      if (selected?.id === campaign.id) {
+        if (remaining.length) {
+          await selectCampaign(remaining[0].id);
+        } else {
+          setSelected(null);
+        }
+      }
+      setMessage({ type: 'success', text: `Campaign “${campaign.name}” deleted.` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    }
+  }
+
   async function addCandidate(event) {
     event.preventDefault();
     if (!selected) return;
@@ -203,7 +224,7 @@ export default function CampaignWorkspace() {
           <button className="primary-button form-button" disabled={saving} type="submit">Create campaign</button>
         </form>
         <div className="campaign-items">
-          {campaigns.map((campaign) => <button key={campaign.id} className={`campaign-item ${selected?.id === campaign.id ? 'campaign-item-active' : ''}`} onClick={() => selectCampaign(campaign.id)} type="button"><strong>{campaign.name}</strong><span>{campaign.segment}</span></button>)}
+          {campaigns.map((campaign) => <div key={campaign.id} className={`campaign-item ${selected?.id === campaign.id ? 'campaign-item-active' : ''}`}><button className="campaign-select-button" onClick={() => selectCampaign(campaign.id)} type="button"><strong>{campaign.name}</strong><span>{campaign.segment}</span></button><button className="campaign-delete-button" type="button" title={`Delete ${campaign.name}`} aria-label={`Delete campaign ${campaign.name}`} onClick={(event) => deleteCampaign(campaign, event)}>Delete</button></div>)}
           {!campaigns.length && <p className="empty-copy">Create your first campaign to begin.</p>}
         </div>
       </section>

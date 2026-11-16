@@ -76,6 +76,32 @@ def create_campaign(payload: CampaignCreate) -> dict:
     return {**campaign, "seed_accounts": payload.seed_accounts}
 
 
+def delete_campaign(campaign_id: UUID) -> None:
+    client = database_client()
+    _campaign_or_404(client, campaign_id)
+    sent_or_pending = database_operation(
+        lambda: client.table("message_drafts")
+        .select("id,status,external_message_id")
+        .eq("campaign_id", str(campaign_id))
+        .execute()
+        .data
+    )
+    if any(
+        item.get("status") in {"send_pending", "sent", "replied"} or item.get("external_message_id")
+        for item in sent_or_pending
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="This campaign has sent or pending DMs. Remove or archive sent conversations before deleting it.",
+        )
+    database_operation(
+        lambda: client.table("campaigns")
+        .delete()
+        .eq("id", str(campaign_id))
+        .execute()
+    )
+
+
 def campaign_workspace(campaign_id: UUID) -> dict:
     client = database_client()
     campaign = _campaign_or_404(client, campaign_id)
