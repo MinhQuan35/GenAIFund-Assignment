@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 
 DOMAIN_TERMS = (
     "artificial intelligence", "machine learning", "computer vision", "large language model",
@@ -51,7 +52,13 @@ def _role_query_terms(groups: list[str]) -> list[str]:
     return list(dict.fromkeys(term for group in groups for term in ROLE_QUERY_GROUPS[group]))
 
 
-def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_region: bool = False) -> dict:
+def assess_candidate_quality(
+    candidate: dict,
+    evidence: list[dict],
+    *,
+    segment: str = "AI robotics",
+    require_region: bool = False,
+) -> dict:
     profile_text = " ".join(
         value for value in (candidate.get("bio"), candidate.get("location")) if value
     )
@@ -60,8 +67,19 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_r
     domain_matches = _matches(all_text, DOMAIN_TERMS)
     role_matches = _matches(all_text, ROLE_TERMS)
     region_matches = _matches(f"{candidate.get('location') or ''} {candidate.get('bio') or ''}", REGION_TERMS)
-    post_evidence = [item for item in evidence if item.get("source_type") == "post"]
-    has_supporting_sources = len(evidence) >= 2 or any(len(item.get("excerpt", "")) >= 50 for item in post_evidence)
+    domain_keywords = campaign_criteria(segment)["domains"] or list(DOMAIN_TERMS)
+    post_evidence = [
+        item for item in evidence
+        if item.get("source_type") == "post"
+        and _matches(item.get("excerpt", ""), tuple(domain_keywords))
+    ]
+    has_supporting_sources = len(post_evidence) >= 5
+    created_at = candidate.get("x_account_created_at")
+    try:
+        account_age_days = (datetime.now(timezone.utc) - datetime.fromisoformat(created_at.replace("Z", "+00:00"))).days if created_at else None
+    except (TypeError, ValueError):
+        account_age_days = None
+    account_old_enough = account_age_days is not None and account_age_days >= 365
 
     score = (
         (30 if domain_matches else 0)
@@ -75,7 +93,9 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_r
     if not role_matches:
         missing.append("No clear builder, founder, or researcher role signal.")
     if not has_supporting_sources:
-        missing.append("Add another source or a substantial public post as evidence.")
+        missing.append(f"Need at least 5 public posts containing campaign keywords; found {len(post_evidence)}.")
+    if not account_old_enough:
+        missing.append("X account must be at least 1 year old; creation date is missing or account is newer.")
     if require_region and not region_matches:
         missing.append("Southeast Asia location is not established by the saved data.")
 
@@ -83,6 +103,7 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_r
         domain_matches
         and role_matches
         and has_supporting_sources
+        and account_old_enough
         and (region_matches or not require_region)
         and score >= 70
     )
@@ -95,6 +116,8 @@ def assess_candidate_quality(candidate: dict, evidence: list[dict], *, require_r
             "region": region_matches,
             "source_count": len(evidence),
             "post_count": len(post_evidence),
+            "account_age_days": account_age_days,
+            "account_old_enough": account_old_enough,
             "region_required": require_region,
         },
         "missing": missing,

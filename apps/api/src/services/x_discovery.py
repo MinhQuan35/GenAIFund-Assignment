@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -15,6 +16,9 @@ STOP_WORDS = {
     "is", "of", "on", "or", "the", "that", "this", "to", "with", "across",
     "people", "builders", "working",
 }
+MIN_ACCOUNT_AGE_DAYS = 365
+MIN_RELEVANT_POSTS = 5
+TIMELINE_POSTS_TO_CHECK = 20
 
 
 def _segment_terms(segment: str) -> list[str]:
@@ -70,11 +74,35 @@ def _evidence_for(user: dict, posts: list[dict]) -> list[EvidenceCreate]:
     return evidence
 
 
+def _relevant_posts(segment: str, posts: list[dict]) -> list[dict]:
+    terms = campaign_criteria(segment)["domains"]
+    relevant = []
+    for post in posts:
+        text = post.get("text", "")
+        if any(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text, re.IGNORECASE) for term in terms):
+            relevant.append(post)
+    return relevant
+
+
+def _account_age_failure(user: dict) -> str | None:
+    created_at = user.get("created_at")
+    if not created_at:
+        return "X account creation date unavailable"
+    try:
+        created = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return "X account creation date unavailable"
+    if created > datetime.now(timezone.utc) - timedelta(days=MIN_ACCOUNT_AGE_DAYS):
+        return "X account is less than 1 year old"
+    return None
+
+
 def _candidate_quality(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> dict:
     evidence_rows = [item.model_dump() for item in evidence]
     return assess_candidate_quality(
         user,
         evidence_rows,
+        segment=criteria["segment"],
         require_region=criteria["requires_region"],
     )
 
@@ -85,7 +113,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     query, criteria = _search_query(campaign["segment"], payload.query)
 
     posts_per_page = min(100, max(10, payload.target_users * 3))
-    max_pages = min(5, max(1, (payload.target_users + 9) // 10))
+    max_pages = 5
     users: dict[str, dict] = {}
     posts_by_user: dict[str, list[dict]] = {}
     next_token = None
@@ -96,7 +124,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             "max_results": posts_per_page,
             "tweet.fields": "author_id,created_at,lang,public_metrics",
             "expansions": "author_id",
-            "user.fields": "name,username,description,location,verified,profile_image_url",
+            "user.fields": "name,username,description,location,verified,profile_image_url,created_at",
         }
         if next_token:
             params["next_token"] = next_token
@@ -124,7 +152,29 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             excluded += 1
             excluded_reasons["X profile did not include a username"] = excluded_reasons.get("X profile did not include a username", 0) + 1
             continue
-        evidence = _evidence_for(user, posts)
+        age_failure = _account_age_failure(user)
+        if age_failure:
+            excluded += 1
+            excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
+            continue
+        relevant_posts = _relevant_posts(campaign["segment"], posts)
+        if len(relevant_posts) < MIN_RELEVANT_POSTS:
+            timeline = api_request(
+                "GET",
+                f"/users/{author_id}/tweets",
+                params={
+                    "max_results": TIMELINE_POSTS_TO_CHECK,
+                    "tweet.fields": "created_at,lang",
+                    "exclude": "retweets,replies",
+                },
+            )
+            relevant_posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+        if len(relevant_posts) < MIN_RELEVANT_POSTS:
+            excluded += 1
+            reason = f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
+        evidence = _evidence_for(user, relevant_posts)
         quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
         if not quality["eligible"]:
             excluded += 1
@@ -135,6 +185,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         candidate = CandidateCreate(
             username=user["username"],
             x_user_id=author_id,
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")),
             display_name=user.get("name"),
             bio=user.get("description"),
             location=user.get("location"),
@@ -159,18 +210,28 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         if saved >= payload.target_users:
             break
         username = seed["username"]
-        lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified"})
+        lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified,created_at"})
         user = lookup.get("data", {})
         if not user.get("id") or not user.get("username"):
             continue
         if user["id"] in discovered_user_ids:
             continue
+        age_failure = _account_age_failure(user)
+        if age_failure:
+            excluded += 1
+            excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
+            continue
         timeline = api_request(
             "GET",
             f"/users/{user['id']}/tweets",
-            params={"max_results": 5, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
+            params={"max_results": TIMELINE_POSTS_TO_CHECK, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
         )
-        posts = timeline.get("data", [])
+        posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+        if len(posts) < MIN_RELEVANT_POSTS:
+            excluded += 1
+            reason = f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
         evidence = _evidence_for(user, posts)
         quality = _candidate_quality(user, evidence, criteria) if evidence else {"eligible": False, "missing": ["No usable profile or post evidence"]}
         if not quality["eligible"]:
@@ -180,7 +241,9 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             continue
         score, reason = _score_candidate(campaign["segment"], user, posts)
         add_candidate(campaign_id, CandidateCreate(
-            username=user["username"], x_user_id=user["id"], display_name=user.get("name"),
+            username=user["username"], x_user_id=user["id"],
+            x_account_created_at=datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")),
+            display_name=user.get("name"),
             bio=user.get("description"), location=user.get("location"), fit_reason=reason,
             fit_score=score, evidence=evidence[:6],
         ))

@@ -100,7 +100,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
     candidate_ids = [link["candidate_id"] for link in links]
     candidates = database_operation(
         lambda: client.table("candidates")
-        .select("id,username,display_name,bio,location,profile_url")
+        .select("id,username,x_account_created_at,display_name,bio,location,profile_url")
         .in_("id", candidate_ids)
         .execute()
         .data
@@ -148,6 +148,7 @@ def campaign_workspace(campaign_id: UUID) -> dict:
                 "qualification": assess_candidate_quality(
                     profile,
                     evidence_by_candidate[candidate_id],
+                    segment=campaign["segment"],
                     require_region=require_region,
                 ),
                 "message": draft_by_candidate.get(candidate_id),
@@ -168,6 +169,7 @@ def add_candidate(campaign_id: UUID, payload: CandidateCreate) -> dict:
     profile_data = {
         "username": username,
         "x_user_id": payload.x_user_id,
+        "x_account_created_at": payload.x_account_created_at.isoformat() if payload.x_account_created_at else None,
         "display_name": payload.display_name,
         "bio": payload.bio,
         "location": payload.location,
@@ -352,7 +354,7 @@ def list_people() -> list[dict]:
     client = database_client()
     candidates = database_operation(
         lambda: client.table("candidates")
-        .select("id,username,display_name,bio,location,profile_url")
+        .select("id,username,x_account_created_at,display_name,bio,location,profile_url")
         .order("username")
         .execute()
         .data

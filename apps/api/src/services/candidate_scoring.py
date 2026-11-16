@@ -65,7 +65,7 @@ def score_candidate(campaign_id: UUID, candidate_id: UUID) -> dict:
 
     profiles = database_operation(
         lambda: client.table("candidates")
-        .select("username,x_user_id,display_name,bio,location,profile_url")
+        .select("username,x_user_id,x_account_created_at,display_name,bio,location,profile_url")
         .eq("id", str(candidate_id))
         .limit(1)
         .execute()
@@ -87,6 +87,7 @@ def score_candidate(campaign_id: UUID, candidate_id: UUID) -> dict:
     qualification = assess_candidate_quality(
         profile,
         evidence,
+        segment=campaign["segment"],
         require_region=campaign_criteria(campaign["segment"])["requires_region"],
     )
     if not qualification["eligible"]:

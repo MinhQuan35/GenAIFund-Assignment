@@ -19,6 +19,7 @@ class CandidateCreate(BaseModel):
 
     username: str = Field(min_length=1, max_length=15)
     x_user_id: str | None = Field(default=None, max_length=32)
+    x_account_created_at: datetime | None = None
     display_name: str | None = Field(default=None, max_length=160)
     bio: str | None = Field(default=None, max_length=1000)
     location: str | None = Field(default=None, max_length=160)
@@ -50,6 +51,7 @@ from src.schemas.messages import MessageDraftResponse
 class CandidateWorkspaceItem(BaseModel):
     id: UUID
     username: str
+    x_account_created_at: datetime | None = None
     display_name: str | None
     bio: str | None
     location: str | None
