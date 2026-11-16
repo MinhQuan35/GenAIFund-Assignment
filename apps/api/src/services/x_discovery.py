@@ -16,8 +16,8 @@ STOP_WORDS = {
     "is", "of", "on", "or", "the", "that", "this", "to", "with", "across",
     "people", "builders", "working",
 }
-MIN_RELEVANT_POSTS = 5
-TIMELINE_POSTS_TO_CHECK = 20
+MIN_RELEVANT_POSTS = 3
+TIMELINE_POSTS_TO_CHECK = 10
 
 
 def _segment_terms(segment: str) -> list[str]:
@@ -82,6 +82,15 @@ def _relevant_posts(segment: str, posts: list[dict]) -> list[dict]:
         if any(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text, re.IGNORECASE) for term in terms):
             relevant.append(post)
     return relevant
+
+
+def _merge_posts(*post_groups: list[dict]) -> list[dict]:
+    merged = {}
+    for group in post_groups:
+        for post in group:
+            if post.get("id"):
+                merged[post["id"]] = post
+    return list(merged.values())
 
 
 def _candidate_quality(user: dict, evidence: list[EvidenceCreate], criteria: dict) -> dict:
@@ -166,7 +175,8 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
                 reason = "X project/access tier does not allow reading this user's post timeline"
                 excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
                 continue
-            relevant_posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+            timeline_posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
+            relevant_posts = _merge_posts(relevant_posts, timeline_posts)
         if len(relevant_posts) < MIN_RELEVANT_POSTS:
             excluded += 1
             reason = f"Fewer than {MIN_RELEVANT_POSTS} posts match the segment keywords"
