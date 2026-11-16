@@ -42,6 +42,7 @@ def _score_candidate(segment: str, user: dict, posts: list[dict]) -> tuple[int, 
 
 def _search_query(segment: str, custom_query: str | None) -> tuple[str, dict]:
     criteria = campaign_criteria(segment)
+    criteria["segment"] = segment
     if not criteria["domains"]:
         raise HTTPException(status_code=422, detail="Target segment must name an AI or robotics domain, such as AI, robotics, or machine learning.")
     if custom_query:
