@@ -110,7 +110,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
 
     posts_per_page = min(100, max(10, payload.target_users * 3))
     max_pages = 5
-    timeline_profile_limit = min(10, max(5, payload.target_users * 5))
+    timeline_profile_limit = min(4, max(1, payload.target_users))
     timeline_profiles_checked = 0
     users: dict[str, dict] = {}
     posts_by_user: dict[str, list[dict]] = {}
