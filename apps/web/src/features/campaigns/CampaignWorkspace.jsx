@@ -165,7 +165,7 @@ export default function CampaignWorkspace() {
         .map(([reason, count]) => `${reason} (${count})`)
         .join('; ');
       const filterNote = reasonSummary ? ` Reasons: ${reasonSummary}.` : '';
-      setMessage({ type: 'success', text: `Saved ${result.saved} qualified candidates and filtered out ${result.excluded}.${filterNote} Search read ${result.pages_read} page(s).` });
+      setMessage({ type: 'success', text: `Saved ${result.saved} qualified candidates and filtered out ${result.excluded}.${filterNote} Search read ${result.pages_read} page(s) and checked ${result.timeline_profiles_checked}/${result.timeline_profile_limit} timelines.` });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
     } finally {

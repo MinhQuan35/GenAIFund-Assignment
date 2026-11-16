@@ -13,6 +13,8 @@ class DiscoveryResponse(BaseModel):
     excluded: int
     excluded_reasons: dict[str, int]
     pages_read: int
+    timeline_profiles_checked: int
+    timeline_profile_limit: int
     query: str
     message: str
 

@@ -115,6 +115,8 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
 
     posts_per_page = min(100, max(10, payload.target_users * 3))
     max_pages = 5
+    timeline_profile_limit = min(10, max(2, payload.target_users * 2))
+    timeline_profiles_checked = 0
     users: dict[str, dict] = {}
     posts_by_user: dict[str, list[dict]] = {}
     next_token = None
@@ -160,6 +162,12 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             continue
         relevant_posts = _relevant_posts(campaign["segment"], posts)
         if len(relevant_posts) < MIN_RELEVANT_POSTS:
+            if timeline_profiles_checked >= timeline_profile_limit:
+                excluded += 1
+                reason = "Timeline verification limit reached for this run"
+                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+                continue
+            timeline_profiles_checked += 1
             try:
                 timeline = api_request(
                     "GET",
@@ -218,6 +226,8 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
     for seed in seeds:
         if saved >= payload.target_users:
             break
+        if timeline_profiles_checked >= timeline_profile_limit:
+            break
         username = seed["username"]
         try:
             lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified,created_at"})
@@ -238,6 +248,7 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             excluded += 1
             excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
             continue
+        timeline_profiles_checked += 1
         try:
             timeline = api_request(
                 "GET",
@@ -282,6 +293,8 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         "excluded": excluded,
         "excluded_reasons": excluded_reasons,
         "pages_read": pages_read,
+        "timeline_profiles_checked": timeline_profiles_checked,
+        "timeline_profile_limit": timeline_profile_limit,
         "query": query,
         "message": "Review each profile and evidence before generating outreach.",
     }
