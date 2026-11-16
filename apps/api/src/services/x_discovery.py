@@ -18,7 +18,7 @@ STOP_WORDS = {
 }
 MIN_ACCOUNT_AGE_DAYS = 365
 MIN_RELEVANT_POSTS = 5
-TIMELINE_POSTS_TO_CHECK = 20
+TIMELINE_POSTS_TO_CHECK = 100
 
 
 def _segment_terms(segment: str) -> list[str]:
