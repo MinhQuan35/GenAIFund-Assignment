@@ -203,7 +203,10 @@ def _x_request(method: str, path: str, *, token: str | None = None, params=None,
         if status == 401:
             raise HTTPException(status_code=401, detail="X authorization expired or is invalid. Reconnect the account.") from None
         if status == 403:
-            raise HTTPException(status_code=403, detail="X denied this action. Check OAuth scopes and API access tier.") from None
+            raise HTTPException(
+                status_code=403,
+                detail=f"X denied {method.upper()} {path}. Check OAuth scopes and whether this endpoint is enabled for the X project/access tier.",
+            ) from None
         if status == 402:
             raise HTTPException(
                 status_code=402,

@@ -160,15 +160,23 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             continue
         relevant_posts = _relevant_posts(campaign["segment"], posts)
         if len(relevant_posts) < MIN_RELEVANT_POSTS:
-            timeline = api_request(
-                "GET",
-                f"/users/{author_id}/tweets",
-                params={
-                    "max_results": TIMELINE_POSTS_TO_CHECK,
-                    "tweet.fields": "created_at,lang",
-                    "exclude": "retweets,replies",
-                },
-            )
+            try:
+                timeline = api_request(
+                    "GET",
+                    f"/users/{author_id}/tweets",
+                    params={
+                        "max_results": TIMELINE_POSTS_TO_CHECK,
+                        "tweet.fields": "created_at,lang",
+                        "exclude": "retweets,replies",
+                    },
+                )
+            except HTTPException as error:
+                if error.status_code != 403:
+                    raise
+                excluded += 1
+                reason = "X project/access tier does not allow reading this user's post timeline"
+                excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+                continue
             relevant_posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
         if len(relevant_posts) < MIN_RELEVANT_POSTS:
             excluded += 1
@@ -211,7 +219,15 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
         if saved >= payload.target_users:
             break
         username = seed["username"]
-        lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified,created_at"})
+        try:
+            lookup = api_request("GET", f"/users/by/username/{username}", params={"user.fields": "name,username,description,location,verified,created_at"})
+        except HTTPException as error:
+            if error.status_code != 403:
+                raise
+            excluded += 1
+            reason = "X project/access tier does not allow seed profile lookup"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
         user = lookup.get("data", {})
         if not user.get("id") or not user.get("username"):
             continue
@@ -222,11 +238,19 @@ def discover_candidates(campaign_id: UUID, payload: DiscoveryRequest) -> dict:
             excluded += 1
             excluded_reasons[age_failure] = excluded_reasons.get(age_failure, 0) + 1
             continue
-        timeline = api_request(
-            "GET",
-            f"/users/{user['id']}/tweets",
-            params={"max_results": TIMELINE_POSTS_TO_CHECK, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
-        )
+        try:
+            timeline = api_request(
+                "GET",
+                f"/users/{user['id']}/tweets",
+                params={"max_results": TIMELINE_POSTS_TO_CHECK, "tweet.fields": "created_at,lang", "exclude": "retweets,replies"},
+            )
+        except HTTPException as error:
+            if error.status_code != 403:
+                raise
+            excluded += 1
+            reason = "X project/access tier does not allow reading seed-account timelines"
+            excluded_reasons[reason] = excluded_reasons.get(reason, 0) + 1
+            continue
         posts = _relevant_posts(campaign["segment"], timeline.get("data", []))
         if len(posts) < MIN_RELEVANT_POSTS:
             excluded += 1
