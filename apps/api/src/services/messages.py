@@ -50,18 +50,25 @@ def draft_message(campaign_id: UUID, candidate_id: UUID) -> dict:
     candidate = context["candidate"]
     fit = context["fit"]
     evidence = context["evidence"]
+    post_evidence = [item for item in evidence if item["source_type"] == "post"]
+    if not post_evidence:
+        raise HTTPException(status_code=422, detail="Add a public post as evidence before generating a personalized DM.")
+    post_to_reference = post_evidence[-1]
     evidence_text = "\n".join(
         f"- {item['source_type']}: {item['excerpt']} ({item['source_url']})" for item in evidence
     )
     prompt = f"""Write one concise, warm first-contact X DM for GenAI Fund.
 Use only the evidence below. Do not claim familiarity, mutual connections, or facts not provided.
 Do not mention scores or that this was generated. Keep it under 500 characters.
+The message must specifically refer to one concrete idea or detail from the selected recent post below.
+Do not write a generic profile-based opener without referencing that post. Paraphrase faithfully; do not invent reactions or details.
 Include one light invitation to a conversation. Return only the message text.
 
 Candidate: @{candidate['username']} ({candidate.get('display_name') or 'unknown name'})
 Bio: {candidate.get('bio') or 'not provided'}
 Location: {candidate.get('location') or 'not provided'}
 Fit reason: {fit['fit_reason']}
+Selected recent post to reference: {post_to_reference['excerpt']} ({post_to_reference['source_url']})
 Evidence:
 {evidence_text}
 """
