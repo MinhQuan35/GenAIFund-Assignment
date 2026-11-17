@@ -116,7 +116,7 @@ If port 5173 is already in use, stop the other Vite process or change the Vite p
 
 ## Docker Setup
 
-Docker runs the built React app and FastAPI together in one container on port 8004. Configure `.env` and apply the Supabase migrations first.
+Docker is configured to run the built React app and FastAPI together in one container on port 8004. Configure `.env` and apply the Supabase migrations first. This Docker recipe has not been built locally because Docker is not installed in the development environment; the local React and FastAPI paths are verified.
 
 ```powershell
 Copy-Item .env.example .env
